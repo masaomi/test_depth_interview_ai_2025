@@ -1,0 +1,37 @@
+{
+  "home": {
+    "title": "AI Interview System",
+    "subtitle": "Create and conduct AI-powered interviews",
+    "adminButton": "Admin Panel",
+    "startInterview": "Start Interview",
+    "selectLanguage": "Select Language"
+  },
+  "admin": {
+    "title": "Admin Panel",
+    "createTemplate": "Create Interview Template",
+    "templateList": "Interview Templates",
+    "templateTitle": "Interview Title",
+    "templatePrompt": "Interview Prompt",
+    "templateDuration": "Duration (seconds)",
+    "save": "Save Template",
+    "delete": "Delete",
+    "back": "Back to Home",
+    "promptPlaceholder": "Describe what you want to ask users. For example: 'Interview users about their experience with our product. Ask about what they like, what they don't like, and what improvements they would suggest.'"
+  },
+  "interview": {
+    "title": "Interview",
+    "timeRemaining": "Time Remaining",
+    "inputPlaceholder": "Type your response...",
+    "send": "Send",
+    "timeUpTitle": "Time's Up!",
+    "timeUpMessage": "Would you like to extend the interview?",
+    "extend": "Extend 5 minutes",
+    "finish": "Finish",
+    "thankYou": "Thank you for participating!",
+    "thankYouMessage": "Your responses have been saved.",
+    "close": "Close",
+    "initializing": "Initializing interview...",
+    "error": "Error",
+    "errorMessage": "An error occurred. Please try again."
+  }
+}

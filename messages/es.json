@@ -1,0 +1,37 @@
+{
+  "home": {
+    "title": "Sistema de Entrevistas IA",
+    "subtitle": "Crea y realiza entrevistas con IA",
+    "adminButton": "Panel de Administración",
+    "startInterview": "Iniciar Entrevista",
+    "selectLanguage": "Seleccionar Idioma"
+  },
+  "admin": {
+    "title": "Panel de Administración",
+    "createTemplate": "Crear Plantilla de Entrevista",
+    "templateList": "Plantillas de Entrevista",
+    "templateTitle": "Título de la Entrevista",
+    "templatePrompt": "Indicaciones de la Entrevista",
+    "templateDuration": "Duración (segundos)",
+    "save": "Guardar Plantilla",
+    "delete": "Eliminar",
+    "back": "Volver a Inicio",
+    "promptPlaceholder": "Describe lo que quieres preguntar a los usuarios. Por ejemplo: 'Entrevista a los usuarios sobre su experiencia con nuestro producto. Pregunta qué les gusta, qué no les gusta y qué mejoras sugerirían.'"
+  },
+  "interview": {
+    "title": "Entrevista",
+    "timeRemaining": "Tiempo Restante",
+    "inputPlaceholder": "Escribe tu respuesta...",
+    "send": "Enviar",
+    "timeUpTitle": "¡Se acabó el tiempo!",
+    "timeUpMessage": "¿Te gustaría extender la entrevista?",
+    "extend": "Extender 5 minutos",
+    "finish": "Finalizar",
+    "thankYou": "¡Gracias por participar!",
+    "thankYouMessage": "Tus respuestas han sido guardadas.",
+    "close": "Cerrar",
+    "initializing": "Inicializando entrevista...",
+    "error": "Error",
+    "errorMessage": "Ocurrió un error. Por favor, inténtalo de nuevo."
+  }
+}

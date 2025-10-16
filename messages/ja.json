@@ -1,0 +1,37 @@
+{
+  "home": {
+    "title": "AIインタビューシステム",
+    "subtitle": "AI搭載のインタビューを作成・実施",
+    "adminButton": "管理パネル",
+    "startInterview": "インタビュー開始",
+    "selectLanguage": "言語を選択"
+  },
+  "admin": {
+    "title": "管理パネル",
+    "createTemplate": "インタビューテンプレート作成",
+    "templateList": "インタビューテンプレート",
+    "templateTitle": "インタビュータイトル",
+    "templatePrompt": "インタビュープロンプト",
+    "templateDuration": "所要時間（秒）",
+    "save": "テンプレート保存",
+    "delete": "削除",
+    "back": "ホームに戻る",
+    "promptPlaceholder": "ユーザーに聞きたいことを記述してください。例：「製品の体験についてユーザーにインタビューします。好きなところ、嫌いなところ、改善提案について聞いてください。」"
+  },
+  "interview": {
+    "title": "インタビュー",
+    "timeRemaining": "残り時間",
+    "inputPlaceholder": "回答を入力してください...",
+    "send": "送信",
+    "timeUpTitle": "時間終了！",
+    "timeUpMessage": "インタビューを延長しますか？",
+    "extend": "5分延長",
+    "finish": "終了",
+    "thankYou": "ご参加ありがとうございました！",
+    "thankYouMessage": "回答は保存されました。",
+    "close": "閉じる",
+    "initializing": "インタビューを初期化中...",
+    "error": "エラー",
+    "errorMessage": "エラーが発生しました。もう一度お試しください。"
+  }
+}
