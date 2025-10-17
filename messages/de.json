@@ -1,0 +1,37 @@
+{
+  "home": {
+    "title": "KI-Interview-System",
+    "subtitle": "Erstellen und führen Sie KI-gestützte Interviews",
+    "adminButton": "Admin-Panel",
+    "startInterview": "Interview starten",
+    "selectLanguage": "Sprache wählen"
+  },
+  "admin": {
+    "title": "Admin-Panel",
+    "createTemplate": "Interview-Vorlage erstellen",
+    "templateList": "Interview-Vorlagen",
+    "templateTitle": "Interview-Titel",
+    "templatePrompt": "Interview-Anweisungen",
+    "templateDuration": "Dauer (Sekunden)",
+    "save": "Vorlage speichern",
+    "delete": "Löschen",
+    "back": "Zurück zur Startseite",
+    "promptPlaceholder": "Beschreiben Sie, was Sie die Benutzer fragen möchten."
+  },
+  "interview": {
+    "title": "Interview",
+    "timeRemaining": "Verbleibende Zeit",
+    "inputPlaceholder": "Geben Sie Ihre Antwort ein...",
+    "send": "Senden",
+    "timeUpTitle": "Zeit abgelaufen!",
+    "timeUpMessage": "Möchten Sie das Interview verlängern?",
+    "extend": "5 Minuten verlängern",
+    "finish": "Beenden",
+    "thankYou": "Vielen Dank für Ihre Teilnahme!",
+    "thankYouMessage": "Ihre Antworten wurden gespeichert.",
+    "close": "Schließen",
+    "initializing": "Interview wird initialisiert...",
+    "error": "Fehler",
+    "errorMessage": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut."
+  }
+}

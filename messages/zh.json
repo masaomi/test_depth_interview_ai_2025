@@ -1,0 +1,37 @@
+{
+  "home": {
+    "title": "AI访谈系统",
+    "subtitle": "创建和进行AI驱动的访谈",
+    "adminButton": "管理面板",
+    "startInterview": "开始访谈",
+    "selectLanguage": "选择语言"
+  },
+  "admin": {
+    "title": "管理面板",
+    "createTemplate": "创建访谈模板",
+    "templateList": "访谈模板",
+    "templateTitle": "访谈标题",
+    "templatePrompt": "访谈提示",
+    "templateDuration": "时长（秒）",
+    "save": "保存模板",
+    "delete": "删除",
+    "back": "返回首页",
+    "promptPlaceholder": "描述您想向用户询问的内容。"
+  },
+  "interview": {
+    "title": "访谈",
+    "timeRemaining": "剩余时间",
+    "inputPlaceholder": "输入您的回答...",
+    "send": "发送",
+    "timeUpTitle": "时间到！",
+    "timeUpMessage": "您想延长访谈时间吗？",
+    "extend": "延长5分钟",
+    "finish": "结束",
+    "thankYou": "感谢您的参与！",
+    "thankYouMessage": "您的回答已保存。",
+    "close": "关闭",
+    "initializing": "正在初始化访谈...",
+    "error": "错误",
+    "errorMessage": "发生错误。请重试。"
+  }
+}

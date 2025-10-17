@@ -1,0 +1,37 @@
+{
+  "home": {
+    "title": "Système d'Entretien IA",
+    "subtitle": "Créer et mener des entretiens assistés par IA",
+    "adminButton": "Panneau d'Administration",
+    "startInterview": "Commencer l'Entretien",
+    "selectLanguage": "Sélectionner la Langue"
+  },
+  "admin": {
+    "title": "Panneau d'Administration",
+    "createTemplate": "Créer un Modèle d'Entretien",
+    "templateList": "Modèles d'Entretien",
+    "templateTitle": "Titre de l'Entretien",
+    "templatePrompt": "Consignes de l'Entretien",
+    "templateDuration": "Durée (secondes)",
+    "save": "Enregistrer le Modèle",
+    "delete": "Supprimer",
+    "back": "Retour à l'Accueil",
+    "promptPlaceholder": "Décrivez ce que vous voulez demander aux utilisateurs."
+  },
+  "interview": {
+    "title": "Entretien",
+    "timeRemaining": "Temps Restant",
+    "inputPlaceholder": "Tapez votre réponse...",
+    "send": "Envoyer",
+    "timeUpTitle": "Temps écoulé!",
+    "timeUpMessage": "Voulez-vous prolonger l'entretien?",
+    "extend": "Prolonger de 5 minutes",
+    "finish": "Terminer",
+    "thankYou": "Merci d'avoir participé!",
+    "thankYouMessage": "Vos réponses ont été enregistrées.",
+    "close": "Fermer",
+    "initializing": "Initialisation de l'entretien...",
+    "error": "Erreur",
+    "errorMessage": "Une erreur s'est produite. Veuillez réessayer."
+  }
+}
