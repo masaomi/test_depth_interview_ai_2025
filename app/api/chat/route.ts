@@ -4,11 +4,42 @@ import db from '@/lib/db';
 import { Message, InterviewTemplate } from '@/lib/types';
 
 function getOpenAIClient() {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY environment variable is not set');
+  const provider = process.env.LLM_PROVIDER;
+  
+  // Priority: LLM_PROVIDER=local > OPENAI_API_KEY
+  if (provider === 'local') {
+    // Local LLM server (Ollama, LM Studio, etc.)
+    const baseURL = process.env.LOCAL_LLM_BASE_URL;
+    const apiKey = process.env.LOCAL_LLM_API_KEY || 'dummy';
+    
+    if (!baseURL) {
+      throw new Error('LOCAL_LLM_BASE_URL environment variable is not set');
+    }
+    
+    console.log(`Using local LLM at ${baseURL}`);
+    return new OpenAI({ 
+      baseURL,
+      apiKey,
+    });
+  } else {
+    // OpenAI API
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY environment variable is not set');
+    }
+    console.log('Using OpenAI API');
+    return new OpenAI({ apiKey });
   }
-  return new OpenAI({ apiKey });
+}
+
+function getModelName() {
+  const provider = process.env.LLM_PROVIDER;
+  
+  if (provider === 'local') {
+    return process.env.LOCAL_LLM_MODEL || 'gpt-oss20B';
+  } else {
+    return process.env.OPENAI_MODEL || 'gpt-4';
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -58,10 +89,14 @@ export async function POST(request: NextRequest) {
       { role: 'user', content: message },
     ];
 
-    // Call OpenAI API
+    // Call LLM API
     const openai = getOpenAIClient();
+    const modelName = getModelName();
+    
+    console.log(`Calling LLM model: ${modelName}`);
+    
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: modelName,
       messages: messages as any,
       temperature: 0.7,
       max_tokens: 500,
