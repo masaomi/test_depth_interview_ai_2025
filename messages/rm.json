@@ -1,0 +1,40 @@
+{
+  "home": {
+    "title": "System d'Intervistas AI",
+    "subtitle": "Crear e manar intervistas cun AI",
+    "adminButton": "Panel d'Administraziun",
+    "startInterview": "Cumenzar Intervista",
+    "selectLanguage": "Tscherner Lingua"
+  },
+  "admin": {
+    "title": "Panel d'Administraziun",
+    "createTemplate": "Crear Model d'Intervista",
+    "templateList": "Models d'Intervista",
+    "templateTitle": "Titel da l'Intervista",
+    "templatePrompt": "Prompt da l'Intervista",
+    "templateDuration": "Diraziun (secundas)",
+    "save": "Memorisar Model",
+    "delete": "Stizzar",
+    "back": "Turnar a la Home",
+    "promptPlaceholder": "Descriva tge che ti vuls dumandar als utilisaders. Per exempel: 'Intervista ils utilisaders davart lur experientschas cun noss product. Dumonda tge ch'els han gugent, tge betg e tge midadas ch'els suggeririan.'"
+  },
+  "interview": {
+    "title": "Intervista",
+    "timeRemaining": "Temp Restant",
+    "inputPlaceholder": "Metta en tia resposta...",
+    "send": "Trametter",
+    "timeUpTitle": "Temp Scadì!",
+    "timeUpMessage": "Vuls ti prolungar l'intervista?",
+    "extend": "Prolungar per 5 minutas",
+    "finish": "Finir",
+    "thankYou": "Grazia da tia participaziun!",
+    "thankYouMessage": "Tias respostas èn vegnidas memorisadas.",
+    "close": "Serrar",
+    "initializing": "Inizialisar intervista...",
+    "error": "Errur",
+    "errorMessage": "In errur è cumparì. Emprova anc ina giada.",
+    "warningTitle": "⚠️ Avis Impurtant",
+    "warningMessage": "Quest product è anc in prototyp, perquai vegnan tut ils protocols d'intervistas publitgads. Per plaschair na metta betg infurmaziuns sensiblas. Na metta betg infurmaziuns persunalas u confidenzialas."
+  }
+}
+

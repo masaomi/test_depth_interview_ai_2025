@@ -1,0 +1,40 @@
+{
+  "home": {
+    "title": "Sistema di Interviste AI",
+    "subtitle": "Crea e conduci interviste basate su AI",
+    "adminButton": "Pannello Amministrativo",
+    "startInterview": "Inizia Intervista",
+    "selectLanguage": "Seleziona Lingua"
+  },
+  "admin": {
+    "title": "Pannello Amministrativo",
+    "createTemplate": "Crea Modello di Intervista",
+    "templateList": "Modelli di Intervista",
+    "templateTitle": "Titolo Intervista",
+    "templatePrompt": "Prompt Intervista",
+    "templateDuration": "Durata (secondi)",
+    "save": "Salva Modello",
+    "delete": "Elimina",
+    "back": "Torna alla Home",
+    "promptPlaceholder": "Descrivi cosa vuoi chiedere agli utenti. Ad esempio: 'Intervista gli utenti sulla loro esperienza con il nostro prodotto. Chiedi cosa gli piace, cosa non gli piace e quali miglioramenti suggerirebbero.'"
+  },
+  "interview": {
+    "title": "Intervista",
+    "timeRemaining": "Tempo Rimanente",
+    "inputPlaceholder": "Inserisci la tua risposta...",
+    "send": "Invia",
+    "timeUpTitle": "Tempo Scaduto!",
+    "timeUpMessage": "Vuoi estendere l'intervista?",
+    "extend": "Estendi 5 minuti",
+    "finish": "Termina",
+    "thankYou": "Grazie per la tua partecipazione!",
+    "thankYouMessage": "Le tue risposte sono state salvate.",
+    "close": "Chiudi",
+    "initializing": "Inizializzazione intervista...",
+    "error": "Errore",
+    "errorMessage": "Si è verificato un errore. Riprova.",
+    "warningTitle": "⚠️ Avviso Importante",
+    "warningMessage": "Questo prodotto è ancora un prototipo, quindi tutti i registri delle interviste saranno resi pubblici. Si prega di non includere informazioni sensibili. Non inserire informazioni personali o riservate."
+  }
+}
+

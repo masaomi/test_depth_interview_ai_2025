@@ -11,6 +11,7 @@ db.exec(`
     title TEXT NOT NULL,
     prompt TEXT NOT NULL,
     duration INTEGER NOT NULL DEFAULT 600,
+    translations TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -33,5 +34,12 @@ db.exec(`
     FOREIGN KEY (session_id) REFERENCES interview_sessions(id)
   );
 `);
+
+// Add translations column if it doesn't exist (migration)
+try {
+  db.exec(`ALTER TABLE interview_templates ADD COLUMN translations TEXT`);
+} catch (e) {
+  // Column already exists, ignore
+}
 
 export default db;

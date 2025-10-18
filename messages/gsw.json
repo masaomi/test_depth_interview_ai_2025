@@ -1,0 +1,40 @@
+{
+  "home": {
+    "title": "AI Interview System",
+    "subtitle": "Interviews mit AI erstelle und dureführe",
+    "adminButton": "Verwaltigspanal",
+    "startInterview": "Interview Starte",
+    "selectLanguage": "Sproch wähle"
+  },
+  "admin": {
+    "title": "Verwaltigspanal",
+    "createTemplate": "Interview Vorlag erstelle",
+    "templateList": "Interview Vorlage",
+    "templateTitle": "Interview Titel",
+    "templatePrompt": "Interview Prompt",
+    "templateDuration": "Duur (Sekunde)",
+    "save": "Vorlag speichere",
+    "delete": "Lösche",
+    "back": "Zrugg zur Home",
+    "promptPlaceholder": "Beschriib was d de Benutzer wotsch froge. Zum Bispiel: 'Interview d Benutzer über ihri Erfahrig mit üsem Produkt. Frog was ihne gfallt, was ihne nöd gfallt und weli Verbesserige si würded vorschlah.'"
+  },
+  "interview": {
+    "title": "Interview",
+    "timeRemaining": "Verblibendi Ziit",
+    "inputPlaceholder": "Gib dini Antwort ii...",
+    "send": "Schicke",
+    "timeUpTitle": "Ziit isch um!",
+    "timeUpMessage": "Wotsch s Interview verlängere?",
+    "extend": "5 Minute verlängere",
+    "finish": "Beände",
+    "thankYou": "Merci für dini Teilnahm!",
+    "thankYouMessage": "Dini Antworte sin gspeicheret worde.",
+    "close": "Schliesse",
+    "initializing": "Interview initzialisiere...",
+    "error": "Fehler",
+    "errorMessage": "Es isch en Fehler passiert. Probiers nomol.",
+    "warningTitle": "⚠️ Wichtigi Mitdeilig",
+    "warningMessage": "Das Produkt isch no en Prototyp, drum wärded alli Interviewprotokolle veröffentlicht. Bitte gib keini sensible Informatione ii. Gib keini persönliche oder vertrauliche Informatione ii."
+  }
+}
+

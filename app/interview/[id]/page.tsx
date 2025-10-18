@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Message } from '@/lib/types';
+import { Message, InterviewTemplate } from '@/lib/types';
 
 export default function InterviewPage() {
   const params = useParams();
@@ -21,12 +21,14 @@ export default function InterviewPage() {
   const [showThankYou, setShowThankYou] = useState(false);
   const [interviewTitle, setInterviewTitle] = useState('');
   const [showConfirmEnd, setShowConfirmEnd] = useState(false);
+  const [interviewStarted, setInterviewStarted] = useState(false);
+  const [templateData, setTemplateData] = useState<InterviewTemplate | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    initializeInterview();
+    loadTemplate();
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -42,7 +44,25 @@ export default function InterviewPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const initializeInterview = async () => {
+  const loadTemplate = async () => {
+    try {
+      const response = await fetch(`/api/templates?lang=${encodeURIComponent(language)}`);
+      const templates = await response.json();
+      const template = templates.find((t: InterviewTemplate) => t.id === templateId);
+      if (template) {
+        setTemplateData(template);
+        setInterviewTitle(template.title);
+        setDuration(template.duration);
+      }
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading template:', error);
+      setLoading(false);
+    }
+  };
+
+  const startInterview = async () => {
+    setLoading(true);
     try {
       // Create session
       const sessionRes = await fetch('/api/sessions', {
@@ -62,8 +82,6 @@ export default function InterviewPage() {
       const initData = await initRes.json();
 
       setMessages([{ role: 'assistant', content: initData.message }]);
-      setInterviewTitle(initData.template.title);
-      setDuration(initData.template.duration);
       setTimeRemaining(initData.template.duration);
 
       // Start timer
@@ -80,12 +98,146 @@ export default function InterviewPage() {
         });
       }, 1000);
 
+      setInterviewStarted(true);
       setLoading(false);
     } catch (error) {
       console.error('Error initializing interview:', error);
       setLoading(false);
     }
   };
+
+  // Localized strings for the overview screen
+  const getOverviewStrings = (lang: string) => {
+    switch (lang) {
+      case 'ja':
+        return {
+          overviewTitle: 'インタビュー概要',
+          overviewDescription: 'このインタビューは、AIが対話形式で実施します。技術的な意思決定、実装上の課題、チーム運営などについて詳しくお話を伺います。',
+          estimatedTimeTitle: '想定時間',
+          estimatedTime: '約{minutes}分',
+          extendNote: '※ 途中で時間を延長することも可能です',
+          topicsTitle: '質問テーマ',
+          aiInterviewTitle: 'AIインタビューについて',
+          aiInterviewDescription: 'このインタビューはAIが対話形式で実施します。リラックスして、ご自身の考えや経験をお聞かせください。',
+          importantNoticeTitle: '⚠️ 重要なお知らせ',
+          importantNoticeMessage: '本プロダクトはまだプロトタイプのため、すべてのインタビューログが公開されます。そのため、センシティブな内容については記載しないようにしてください。個人情報や機密情報は入力しないでください。',
+          startButton: 'インタビューを開始する',
+        };
+      case 'es':
+        return {
+          overviewTitle: 'Resumen de la Entrevista',
+          overviewDescription: 'Esta entrevista será realizada por IA en formato de diálogo. Hablaremos en detalle sobre decisiones técnicas, desafíos de implementación, gestión de equipos, etc.',
+          estimatedTimeTitle: 'Tiempo Estimado',
+          estimatedTime: 'Aproximadamente {minutes} minutos',
+          extendNote: '※ Es posible extender el tiempo durante la entrevista',
+          topicsTitle: 'Temas de Discusión',
+          aiInterviewTitle: 'Sobre la Entrevista con IA',
+          aiInterviewDescription: 'Esta entrevista será realizada por IA en formato de diálogo. Relájese y comparta sus pensamientos y experiencias.',
+          importantNoticeTitle: '⚠️ Aviso Importante',
+          importantNoticeMessage: 'Este producto aún es un prototipo, por lo que todos los registros de entrevistas serán públicos. Por favor, no incluya información confidencial. No ingrese información personal o confidencial.',
+          startButton: 'Iniciar Entrevista',
+        };
+      case 'fr':
+        return {
+          overviewTitle: 'Résumé de l\'Entretien',
+          overviewDescription: 'Cet entretien sera mené par IA sous forme de dialogue. Nous parlerons en détail des décisions techniques, des défis de mise en œuvre, de la gestion d\'équipe, etc.',
+          estimatedTimeTitle: 'Temps Estimé',
+          estimatedTime: 'Environ {minutes} minutes',
+          extendNote: '※ Il est possible de prolonger le temps pendant l\'entretien',
+          topicsTitle: 'Sujets de Discussion',
+          aiInterviewTitle: 'À Propos de l\'Entretien IA',
+          aiInterviewDescription: 'Cet entretien sera mené par IA sous forme de dialogue. Détendez-vous et partagez vos pensées et expériences.',
+          importantNoticeTitle: '⚠️ Avis Important',
+          importantNoticeMessage: 'Ce produit est encore un prototype, tous les journaux d\'entretiens seront donc rendus publics. Veuillez ne pas inclure d\'informations sensibles. N\'entrez pas d\'informations personnelles ou confidentielles.',
+          startButton: 'Commencer l\'Entretien',
+        };
+      case 'de':
+        return {
+          overviewTitle: 'Interview-Übersicht',
+          overviewDescription: 'Dieses Interview wird von einer KI im Dialog-Format durchgeführt. Wir werden ausführlich über technische Entscheidungen, Implementierungsherausforderungen, Teammanagement usw. sprechen.',
+          estimatedTimeTitle: 'Geschätzte Zeit',
+          estimatedTime: 'Etwa {minutes} Minuten',
+          extendNote: '※ Es ist möglich, die Zeit während des Interviews zu verlängern',
+          topicsTitle: 'Diskussionsthemen',
+          aiInterviewTitle: 'Über das KI-Interview',
+          aiInterviewDescription: 'Dieses Interview wird von einer KI im Dialog-Format durchgeführt. Entspannen Sie sich und teilen Sie Ihre Gedanken und Erfahrungen.',
+          importantNoticeTitle: '⚠️ Wichtiger Hinweis',
+          importantNoticeMessage: 'Dieses Produkt ist noch ein Prototyp, daher werden alle Interviewprotokolle öffentlich gemacht. Bitte geben Sie keine vertraulichen Informationen an. Geben Sie keine persönlichen oder vertraulichen Informationen ein.',
+          startButton: 'Interview Starten',
+        };
+      case 'zh':
+        return {
+          overviewTitle: '访谈概要',
+          overviewDescription: '本访谈将由AI以对话形式进行。我们将详细讨论技术决策、实施挑战、团队管理等内容。',
+          estimatedTimeTitle: '预计时间',
+          estimatedTime: '约{minutes}分钟',
+          extendNote: '※ 可在访谈过程中延长时间',
+          topicsTitle: '讨论主题',
+          aiInterviewTitle: '关于AI访谈',
+          aiInterviewDescription: '本访谈将由AI以对话形式进行。请放松，分享您的想法和经验。',
+          importantNoticeTitle: '⚠️ 重要提示',
+          importantNoticeMessage: '此产品仍处于原型阶段，因此所有访谈记录都将公开。请勿包含任何敏感信息。请勿输入任何个人或机密信息。',
+          startButton: '开始访谈',
+        };
+      case 'it':
+        return {
+          overviewTitle: 'Panoramica dell\'Intervista',
+          overviewDescription: 'Questa intervista sarà condotta da AI in formato dialogo. Discuteremo in dettaglio di decisioni tecniche, sfide di implementazione, gestione del team, ecc.',
+          estimatedTimeTitle: 'Tempo Stimato',
+          estimatedTime: 'Circa {minutes} minuti',
+          extendNote: '※ È possibile estendere il tempo durante l\'intervista',
+          topicsTitle: 'Argomenti di Discussione',
+          aiInterviewTitle: 'Informazioni sull\'Intervista AI',
+          aiInterviewDescription: 'Questa intervista è condotta da AI in formato dialogo. Rilassati e condividi i tuoi pensieri ed esperienze.',
+          importantNoticeTitle: '⚠️ Avviso Importante',
+          importantNoticeMessage: 'Questo prodotto è ancora un prototipo, quindi tutti i registri delle interviste saranno resi pubblici. Si prega di non includere informazioni sensibili. Non inserire informazioni personali o riservate.',
+          startButton: 'Inizia Intervista',
+        };
+      case 'rm':
+        return {
+          overviewTitle: 'Survista da l\'Intervista',
+          overviewDescription: 'Questa intervista vegn manada da l\'AI en furma da dialog. Nus discutain detagliadamain davart decisiuns tecnicas, sfidas da realisaziun, gestiun da team, etc.',
+          estimatedTimeTitle: 'Temp Calculà',
+          estimatedTime: 'Radund {minutes} minutas',
+          extendNote: '※ I è pussaivel da prolungar il temp durant l\'intervista',
+          topicsTitle: 'Temas da Discussiun',
+          aiInterviewTitle: 'Davart l\'Intervista AI',
+          aiInterviewDescription: 'Questa intervista vegn manada da l\'AI en furma da dialog. Relaxescha e parta tes pensaments ed experientschas.',
+          importantNoticeTitle: '⚠️ Avis Impurtant',
+          importantNoticeMessage: 'Quest product è anc in prototyp, perquai vegnan tut ils protocols d\'intervistas publitgads. Per plaschair na metta betg infurmaziuns sensiblas. Na metta betg infurmaziuns persunalas u confidenzialas.',
+          startButton: 'Cumenzar Intervista',
+        };
+      case 'gsw':
+        return {
+          overviewTitle: 'Interview Überblick',
+          overviewDescription: 'Das Interview wird vo AI im Dialogformat dureführt. Mir wärded detailliert über technischi Entscheidige, Implementierigshürde, Teammanagement, etc. rede.',
+          estimatedTimeTitle: 'Gschätzti Ziit',
+          estimatedTime: 'Öppe {minutes} Minute',
+          extendNote: '※ Es isch möglich d Ziit während em Interview z verlängere',
+          topicsTitle: 'Diskussionsthemä',
+          aiInterviewTitle: 'Über s AI Interview',
+          aiInterviewDescription: 'Das Interview wird vo AI im Dialogformat dureführt. Entspann di und teil dini Gedankä und Erfahrige.',
+          importantNoticeTitle: '⚠️ Wichtigi Mitdeilig',
+          importantNoticeMessage: 'Das Produkt isch no en Prototyp, drum wärded alli Interviewprotokolle veröffentlicht. Bitte gib keini sensible Informatione ii. Gib keini persönliche oder vertrauliche Informatione ii.',
+          startButton: 'Interview Starte',
+        };
+      default:
+        return {
+          overviewTitle: 'Interview Overview',
+          overviewDescription: 'This interview will be conducted by AI in a dialogue format. We will discuss in detail about technical decisions, implementation challenges, team management, etc.',
+          estimatedTimeTitle: 'Estimated Time',
+          estimatedTime: 'Approximately {minutes} minutes',
+          extendNote: '※ It is possible to extend the time during the interview',
+          topicsTitle: 'Discussion Topics',
+          aiInterviewTitle: 'About AI Interview',
+          aiInterviewDescription: 'This interview is conducted by AI in a dialogue format. Please relax and share your thoughts and experiences.',
+          importantNoticeTitle: '⚠️ Important Notice',
+          importantNoticeMessage: 'This product is still a prototype, so all interview logs will be made public. Please do not include any sensitive information. Do not enter any personal or confidential information.',
+          startButton: 'Start Interview',
+        };
+    }
+  };
+  const overviewStrings = getOverviewStrings(language);
 
   // Minimal localized strings for the end-interview confirmation
   const getConfirmStrings = (lang: string) => {
@@ -130,6 +282,30 @@ export default function InterviewPage() {
           cancel: '取消',
           confirm: '结束',
         };
+      case 'it':
+        return {
+          endButton: 'Termina Intervista',
+          title: 'Terminare l\'Intervista?',
+          message: 'Sei sicuro di voler terminare l\'intervista ora? Questa azione non può essere annullata.',
+          cancel: 'Annulla',
+          confirm: 'Termina',
+        };
+      case 'rm':
+        return {
+          endButton: 'Finir Intervista',
+          title: 'Finir l\'Intervista?',
+          message: 'Es ti segir che ti vuls finir l\'intervista ussa? Questa acziun na po betg vegnir revertida.',
+          cancel: 'Interrumper',
+          confirm: 'Finir',
+        };
+      case 'gsw':
+        return {
+          endButton: 'Interview Beände',
+          title: 'Interview Beände?',
+          message: 'Bisch sicher dass d s Interview jetzt wotsch beände? Die Akziun cha nöd rückgängig gmacht wärde.',
+          cancel: 'Abbreche',
+          confirm: 'Beände',
+        };
       default:
         return {
           endButton: 'End Interview',
@@ -169,6 +345,21 @@ export default function InterviewPage() {
         return {
           title: '⚠️ 重要提示',
           message: '此产品仍处于原型阶段，因此所有访谈记录都将公开。请勿包含任何敏感信息。请勿输入任何个人或机密信息。',
+        };
+      case 'it':
+        return {
+          title: '⚠️ Avviso Importante',
+          message: 'Questo prodotto è ancora un prototipo, quindi tutti i registri delle interviste saranno resi pubblici. Si prega di non includere informazioni sensibili. Non inserire informazioni personali o riservate.',
+        };
+      case 'rm':
+        return {
+          title: '⚠️ Avis Impurtant',
+          message: 'Quest product è anc in prototyp, perquai vegnan tut ils protocols d\'intervistas publitgads. Per plaschair na metta betg infurmaziuns sensiblas. Na metta betg infurmaziuns persunalas u confidenzialas.',
+        };
+      case 'gsw':
+        return {
+          title: '⚠️ Wichtigi Mitdeilig',
+          message: 'Das Produkt isch no en Prototyp, drum wärded alli Interviewprotokolle veröffentlicht. Bitte gib keini sensible Informatione ii. Gib keini persönliche oder vertrauliche Informatione ii.',
         };
       default:
         return {
@@ -266,6 +457,78 @@ export default function InterviewPage() {
     );
   }
 
+  // Interview overview screen (before starting)
+  if (!interviewStarted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+        <div className="container mx-auto px-4 py-12 max-w-4xl">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden">
+            {/* Header */}
+            <div className="bg-indigo-600 dark:bg-indigo-700 px-8 py-6">
+              <h1 className="text-3xl font-bold text-white text-center">{interviewTitle}</h1>
+            </div>
+
+            <div className="p-8 space-y-6">
+              {/* Overview Section */}
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
+                  {overviewStrings.overviewTitle}
+                </h2>
+                <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                  {templateData?.prompt || overviewStrings.overviewDescription}
+                </p>
+              </div>
+
+              {/* Estimated Time Section */}
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
+                  {overviewStrings.estimatedTimeTitle}
+                </h2>
+                <p className="text-3xl font-bold text-indigo-600 dark:text-indigo-400 mb-2">
+                  {overviewStrings.estimatedTime.replace('{minutes}', Math.floor(duration / 60).toString())}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {overviewStrings.extendNote}
+                </p>
+              </div>
+
+              {/* AI Interview Info Section */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6 border border-blue-200 dark:border-blue-800">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
+                  {overviewStrings.aiInterviewTitle}
+                </h2>
+                <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                  {overviewStrings.aiInterviewDescription}
+                </p>
+              </div>
+
+              {/* Important Notice */}
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-6 rounded-r-lg">
+                <h3 className="text-lg font-bold text-yellow-800 dark:text-yellow-200 mb-3">
+                  {overviewStrings.importantNoticeTitle}
+                </h3>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300 leading-relaxed whitespace-pre-line">
+                  {overviewStrings.importantNoticeMessage}
+                </p>
+              </div>
+
+              {/* Start Button */}
+              <div className="flex justify-center pt-4">
+                <button
+                  onClick={startInterview}
+                  className="px-10 py-4 bg-indigo-600 text-white text-lg font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all"
+                >
+                  {overviewStrings.startButton}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Interview screen (after starting)
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       <div className="container mx-auto px-4 py-8 max-w-4xl">

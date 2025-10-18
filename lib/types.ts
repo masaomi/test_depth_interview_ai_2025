@@ -1,8 +1,14 @@
+export interface TemplateTranslation {
+  title: string;
+  prompt: string;
+}
+
 export interface InterviewTemplate {
   id: string;
   title: string;
   prompt: string;
   duration: number;
+  translations?: string; // JSON string of translations
   created_at?: string;
 }
 

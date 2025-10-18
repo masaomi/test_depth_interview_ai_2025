@@ -10,6 +10,7 @@ export default function AdminPage() {
   const [prompt, setPrompt] = useState('');
   const [duration, setDuration] = useState(600);
   const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTemplates();
@@ -25,25 +26,47 @@ export default function AdminPage() {
     }
   };
 
+  const handleEdit = (template: InterviewTemplate) => {
+    setEditingId(template.id);
+    setTitle(template.title);
+    setPrompt(template.prompt);
+    setDuration(template.duration);
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setTitle('');
+    setPrompt('');
+    setDuration(600);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      const method = editingId ? 'PUT' : 'POST';
+      const body = editingId
+        ? JSON.stringify({ id: editingId, title, prompt, duration })
+        : JSON.stringify({ title, prompt, duration });
+
       const response = await fetch('/api/templates', {
-        method: 'POST',
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, prompt, duration }),
+        body,
       });
 
       if (response.ok) {
         setTitle('');
         setPrompt('');
         setDuration(600);
+        setEditingId(null);
         fetchTemplates();
       }
     } catch (error) {
-      console.error('Error creating template:', error);
+      console.error('Error saving template:', error);
     } finally {
       setLoading(false);
     }
@@ -90,9 +113,19 @@ export default function AdminPage() {
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-              Create Interview Template
-            </h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {editingId ? 'Edit Interview Template' : 'Create Interview Template'}
+              </h2>
+              {editingId && (
+                <button
+                  onClick={handleCancelEdit}
+                  className="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-white rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors"
+                >
+                  Cancel Edit
+                </button>
+              )}
+            </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -145,8 +178,17 @@ export default function AdminPage() {
                 disabled={loading}
                 className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-50"
               >
-                {loading ? 'Saving...' : 'Save Template'}
+                {loading 
+                  ? 'Generating translations and saving...' 
+                  : editingId 
+                    ? 'Update Template' 
+                    : 'Save Template'}
               </button>
+              {loading && (
+                <p className="text-sm text-gray-600 dark:text-gray-400 text-center mt-2">
+                  ⏳ Generating translations for 9 languages (en, ja, es, fr, de, zh, it, rm, gsw)... This may take a moment.
+                </p>
+              )}
             </form>
           </div>
 
@@ -169,12 +211,20 @@ export default function AdminPage() {
                       <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
                         {template.title}
                       </h3>
-                      <button
-                        onClick={() => handleDelete(template.id)}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
-                      >
-                        Delete
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEdit(template)}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(template.id)}
+                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                     <p className="text-gray-600 dark:text-gray-300 mb-2">
                       Duration: {Math.floor(template.duration / 60)} minutes

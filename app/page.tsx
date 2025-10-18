@@ -33,6 +33,9 @@ export default function Home() {
     { code: 'fr', name: 'Français' },
     { code: 'de', name: 'Deutsch' },
     { code: 'zh', name: '中文' },
+    { code: 'it', name: 'Italiano' },
+    { code: 'rm', name: 'Rumantsch' },
+    { code: 'gsw', name: 'Schwiizerdütsch' },
   ];
 
   const getLocalizedText = (lang: string) => {
@@ -108,6 +111,42 @@ export default function Home() {
         noInterviews: '没有可用的访谈。请在管理面板中创建。',
         duration: '时长',
         minutes: '分钟',
+      },
+      it: {
+        title: 'Sistema di Interviste AI',
+        subtitle: 'Crea e conduci interviste basate su AI',
+        selectLanguage: 'Seleziona Lingua',
+        languageNote: '💬 L\'intervista sarà condotta nella lingua selezionata',
+        adminPanel: 'Pannello Amministrativo',
+        availableInterviews: 'Interviste Disponibili',
+        loading: 'Caricamento interviste...',
+        noInterviews: 'Nessuna intervista disponibile. Creane una nel Pannello Amministrativo.',
+        duration: 'Durata',
+        minutes: 'minuti',
+      },
+      rm: {
+        title: 'System d\'Intervistas AI',
+        subtitle: 'Crear e manar intervistas cun AI',
+        selectLanguage: 'Tscherner Lingua',
+        languageNote: '💬 L\'intervista vegn manada en la lingua tschernida',
+        adminPanel: 'Panel d\'Administraziun',
+        availableInterviews: 'Intervistas Disponiblas',
+        loading: 'Chargiar intervistas...',
+        noInterviews: 'Naginas intervistas disponiblas. Creescha ina en il Panel d\'Administraziun.',
+        duration: 'Diraziun',
+        minutes: 'minutas',
+      },
+      gsw: {
+        title: 'AI Interview System',
+        subtitle: 'Interviews mit AI erstelle und dureführe',
+        selectLanguage: 'Sproch wähle',
+        languageNote: '💬 S Interview wird in de gwählte Sproch dureführt',
+        adminPanel: 'Verwaltigspanal',
+        availableInterviews: 'Verfüegbari Interviews',
+        loading: 'Interviews lade...',
+        noInterviews: 'Kei Interviews verfüegbar. Erstell eis im Verwaltigspanal.',
+        duration: 'Duur',
+        minutes: 'Minute',
       },
     };
     return texts[lang] || texts.en;
