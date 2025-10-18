@@ -36,12 +36,30 @@ OPENAI_MODEL=gpt-4-turbo  # or gpt-3.5-turbo, etc.
 # Ollamaをインストール
 # https://ollama.ai/ からダウンロード
 
-# モデルを準備
+# モデルをダウンロード
 ollama pull llama2
 # または、カスタムモデル (gpt-oss20B) をロード
 ```
 
-### ステップ2: .envファイルを設定
+### ステップ2: Ollamaサーバーを起動
+
+```bash
+# Ollamaサーバーを起動（まだ起動していない場合）
+ollama serve
+
+# または、モデルを直接実行（サーバーが自動起動します）
+ollama run llama2
+
+# インストール済みモデルを確認
+ollama list
+
+# APIエンドポイントをテスト
+curl http://localhost:11434/v1/models
+```
+
+**注意**: macOS/Linuxでは、インストール後にOllamaが自動的にバックグラウンドサービスとして起動します。「Error: listen tcp 127.0.0.1:11434: bind: address already in use」というエラーが出た場合は、既にサーバーが起動しています。
+
+### ステップ3: .envファイルを設定
 
 ```bash
 # .env
@@ -56,6 +74,30 @@ LOCAL_LLM_MODEL=llama2
 LLM_PROVIDER=local
 LOCAL_LLM_BASE_URL=http://localhost:11434/v1
 LOCAL_LLM_MODEL=gpt-oss20B
+```
+
+### 便利なOllamaコマンド
+
+```bash
+# サーバーを起動（必要な場合）
+ollama serve
+
+# インストール済みモデルを一覧表示
+ollama list
+
+# 新しいモデルをダウンロード
+ollama pull llama2
+ollama pull mistral
+ollama pull codellama
+
+# モデルを対話的に実行
+ollama run llama2
+
+# モデルを削除
+ollama rm llama2
+
+# サーバーの状態を確認
+curl http://localhost:11434/api/tags
 ```
 
 ---
@@ -158,9 +200,37 @@ LOCAL_LLM_MODEL=gpt-oss20B
 
 ### ローカルLLMに接続できない
 
-- ローカルサーバーが起動しているか確認: `curl http://localhost:11434/v1/models`
+- ローカルサーバーが起動しているか確認:
+  ```bash
+  # Ollamaの場合
+  curl http://localhost:11434/v1/models
+  
+  # LM Studioの場合
+  curl http://localhost:1234/v1/models
+  ```
 - ポート番号が正しいか確認
 - `/v1`パスが含まれているか確認（OpenAI互換API用）
+- Ollamaの場合、サーバーを手動で起動してみる: `ollama serve`
+
+### Ollamaサーバーが起動しない
+
+```bash
+# 既に起動しているか確認
+ps aux | grep ollama
+
+# ポートを確認
+lsof -i :11434
+
+# アドレスが既に使用中の場合、サーバーは起動しています
+# そのまま使用してください
+
+# 強制再起動（macOS）
+brew services restart ollama
+
+# または、プロセスを終了して再起動
+pkill ollama
+ollama serve
+```
 
 ---
 
@@ -188,4 +258,48 @@ OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 このファイルをコピーして、必要な設定のコメントを解除してください。
+
+---
+
+## Ollamaのクイックスタート（macOS）
+
+```bash
+# 1. Ollamaをインストール
+brew install ollama
+
+# 2. Ollamaを起動（自動起動していない場合）
+ollama serve
+
+# 3. モデルをダウンロード（別のターミナルで）
+ollama pull llama2
+
+# 4. テスト
+ollama run llama2
+# "Hello"と入力して応答を確認
+# Ctrl+Dで終了
+
+# 5. .envファイルを設定
+cat > .env << 'EOF'
+LLM_PROVIDER=local
+LOCAL_LLM_BASE_URL=http://localhost:11434/v1
+LOCAL_LLM_MODEL=llama2
+EOF
+
+# 6. アプリケーションを起動
+pnpm dev
+```
+
+---
+
+## Ollamaのおすすめモデル
+
+| モデル | サイズ | 速度 | 品質 | 用途 |
+|--------|--------|------|------|------|
+| `llama2` | 7B | 速い | 良い | 汎用、クイックレスポンス |
+| `llama2:13b` | 13B | 中程度 | より良い | 高品質、やや遅い |
+| `mistral` | 7B | 速い | 優秀 | 速度と品質のバランスが良い |
+| `codellama` | 7B | 速い | 良い | コード関連タスク |
+| `gemma:7b` | 7B | 速い | 良い | Googleのモデル |
+
+ダウンロード: `ollama pull <モデル名>`
 

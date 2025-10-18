@@ -66,16 +66,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
 
+    // Get language name for the prompt
+    const languageNames: Record<string, string> = {
+      en: 'English',
+      ja: 'Japanese',
+      es: 'Spanish',
+      fr: 'French',
+      de: 'German',
+      zh: 'Chinese',
+    };
+    const languageName = languageNames[session.language] || 'English';
+
     // Create initial greeting using configured LLM
     const openai = getOpenAIClient();
     const modelName = getModelName();
-    console.log(`Calling LLM model: ${modelName}`);
+    console.log(`Calling LLM model: ${modelName} in language: ${languageName}`);
     const completion = await openai.chat.completions.create({
       model: modelName,
       messages: [
         {
           role: 'system',
-          content: `You are conducting an interview. ${template.prompt}\n\nStart the interview with a warm greeting and introduce the topic. Keep your introduction brief and welcoming.`,
+          content: `You are conducting an interview. ${template.prompt}\n\nIMPORTANT: You must conduct the entire interview in ${languageName}. All your responses must be in ${languageName}.\n\nStart the interview with a warm greeting and introduce the topic. Keep your introduction brief and welcoming.`,
         },
         {
           role: 'user',
@@ -85,6 +96,24 @@ export async function POST(request: NextRequest) {
       temperature: 0.7,
       max_tokens: 300,
     });
+
+    // Optionally translate template.title to session language for UI consumption
+    let localizedTitle = template.title;
+    try {
+      const languageDisplay = languageNames[session.language] || 'English';
+      const completionTitle = await openai.chat.completions.create({
+        model: modelName,
+        messages: [
+          { role: 'system', content: `Translate the following title to ${languageDisplay}. Only return the translated text.` },
+          { role: 'user', content: template.title },
+        ],
+        temperature: 0.0,
+        max_tokens: 60,
+      });
+      localizedTitle = completionTitle.choices[0].message.content?.trim() || template.title;
+    } catch (e) {
+      console.warn('Title translation failed, fallback to original title');
+    }
 
     const greeting = completion.choices[0].message.content || 'Hello! Thank you for participating in this interview. Let\'s begin.';
 
@@ -97,7 +126,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       message: greeting,
       template: {
-        title: template.title,
+        title: localizedTitle,
         duration: template.duration
       }
     });

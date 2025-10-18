@@ -32,6 +32,8 @@
     "close": "Cerrar",
     "initializing": "Inicializando entrevista...",
     "error": "Error",
-    "errorMessage": "Ocurrió un error. Por favor, inténtalo de nuevo."
+    "errorMessage": "Ocurrió un error. Por favor, inténtalo de nuevo.",
+    "warningTitle": "⚠️ Aviso Importante",
+    "warningMessage": "Este producto aún es un prototipo, por lo que todos los registros de entrevistas serán públicos. Por favor, no incluya información confidencial. No ingrese información personal o confidencial."
   }
 }

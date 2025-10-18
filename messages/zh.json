@@ -32,6 +32,8 @@
     "close": "关闭",
     "initializing": "正在初始化访谈...",
     "error": "错误",
-    "errorMessage": "发生错误。请重试。"
+    "errorMessage": "发生错误。请重试。",
+    "warningTitle": "⚠️ 重要提示",
+    "warningMessage": "此产品仍处于原型阶段，因此所有访谈记录都将公开。请勿包含任何敏感信息。请勿输入任何个人或机密信息。"
   }
 }

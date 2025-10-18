@@ -18,10 +18,21 @@ An AI-powered interview system that allows administrators to create interview te
 
 2. Install dependencies:
 ```bash
+pnpm install
+# or
 npm install
 ```
 
+**Note**: This project uses pnpm. If you don't have pnpm installed:
+```bash
+npm install -g pnpm
+```
+
 3. Create a `.env` file in the root directory and configure your LLM provider.
+
+📚 **For detailed environment setup instructions, see:**
+- [Environment Setup Guide (English)](./ENV_SETUP_GUIDE.en.md) - Complete guide with Ollama commands
+- [環境変数設定ガイド（日本語）](./ENV_SETUP_GUIDE.md) - Ollamaコマンド付き完全ガイド
 
 **Quick Start**: Copy one of the provided sample files:
 ```bash
@@ -77,6 +88,8 @@ LOCAL_LLM_MODEL=gpt-oss20B
 
 4. Run the development server:
 ```bash
+pnpm dev
+# or
 npm run dev
 ```
 

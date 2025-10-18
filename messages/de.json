@@ -32,6 +32,8 @@
     "close": "Schließen",
     "initializing": "Interview wird initialisiert...",
     "error": "Fehler",
-    "errorMessage": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut."
+    "errorMessage": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+    "warningTitle": "⚠️ Wichtiger Hinweis",
+    "warningMessage": "Dieses Produkt ist noch ein Prototyp, daher werden alle Interviewprotokolle öffentlich gemacht. Bitte geben Sie keine vertraulichen Informationen an. Geben Sie keine persönlichen oder vertraulichen Informationen ein."
   }
 }

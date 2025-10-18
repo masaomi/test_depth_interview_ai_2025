@@ -32,6 +32,8 @@
     "close": "Fermer",
     "initializing": "Initialisation de l'entretien...",
     "error": "Erreur",
-    "errorMessage": "Une erreur s'est produite. Veuillez réessayer."
+    "errorMessage": "Une erreur s'est produite. Veuillez réessayer.",
+    "warningTitle": "⚠️ Avis Important",
+    "warningMessage": "Ce produit est encore un prototype, tous les journaux d'entretiens seront donc rendus publics. Veuillez ne pas inclure d'informations sensibles. N'entrez pas d'informations personnelles ou confidentielles."
   }
 }

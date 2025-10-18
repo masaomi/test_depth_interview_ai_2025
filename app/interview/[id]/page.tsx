@@ -142,6 +142,43 @@ export default function InterviewPage() {
   };
   const confirmStrings = getConfirmStrings(language);
 
+  // Localized warning strings
+  const getWarningStrings = (lang: string) => {
+    switch (lang) {
+      case 'ja':
+        return {
+          title: '⚠️ 重要なお知らせ',
+          message: '本プロダクトはまだプロトタイプのため、すべてのインタビューログが公開されます。そのため、センシティブな内容については記載しないようにしてください。個人情報や機密情報は入力しないでください。',
+        };
+      case 'es':
+        return {
+          title: '⚠️ Aviso Importante',
+          message: 'Este producto aún es un prototipo, por lo que todos los registros de entrevistas serán públicos. Por favor, no incluya información confidencial. No ingrese información personal o confidencial.',
+        };
+      case 'fr':
+        return {
+          title: '⚠️ Avis Important',
+          message: 'Ce produit est encore un prototype, tous les journaux d\'entretiens seront donc rendus publics. Veuillez ne pas inclure d\'informations sensibles. N\'entrez pas d\'informations personnelles ou confidentielles.',
+        };
+      case 'de':
+        return {
+          title: '⚠️ Wichtiger Hinweis',
+          message: 'Dieses Produkt ist noch ein Prototyp, daher werden alle Interviewprotokolle öffentlich gemacht. Bitte geben Sie keine vertraulichen Informationen an. Geben Sie keine persönlichen oder vertraulichen Informationen ein.',
+        };
+      case 'zh':
+        return {
+          title: '⚠️ 重要提示',
+          message: '此产品仍处于原型阶段，因此所有访谈记录都将公开。请勿包含任何敏感信息。请勿输入任何个人或机密信息。',
+        };
+      default:
+        return {
+          title: '⚠️ Important Notice',
+          message: 'This product is still a prototype, so all interview logs will be made public. Please do not include any sensitive information. Do not enter any personal or confidential information.',
+        };
+    }
+  };
+  const warningStrings = getWarningStrings(language);
+
   const sendMessage = async () => {
     if (!input.trim() || sending) return;
 
@@ -248,6 +285,20 @@ export default function InterviewPage() {
                 >
                   {confirmStrings.endButton}
                 </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Warning Notice */}
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-4 mx-6 mt-4">
+            <div className="flex">
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-yellow-800 dark:text-yellow-200 mb-2">
+                  {warningStrings.title}
+                </h3>
+                <div className="text-sm text-yellow-700 dark:text-yellow-300">
+                  <p className="whitespace-pre-wrap">{warningStrings.message}</p>
+                </div>
               </div>
             </div>
           </div>

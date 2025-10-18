@@ -79,11 +79,22 @@ export async function POST(request: NextRequest) {
     );
     saveUserMsg.run(session_id, 'user', message);
 
+    // Get language name for the prompt
+    const languageNames: Record<string, string> = {
+      en: 'English',
+      ja: 'Japanese',
+      es: 'Spanish',
+      fr: 'French',
+      de: 'German',
+      zh: 'Chinese',
+    };
+    const languageName = languageNames[session.language] || 'English';
+
     // Build messages for OpenAI
     const messages: Message[] = [
       {
         role: 'system',
-        content: `You are conducting an interview. ${template.prompt}\n\nConduct the interview in a conversational manner. Ask follow-up questions based on the user's responses. Keep your responses concise and focused.`,
+        content: `You are conducting an interview. ${template.prompt}\n\nIMPORTANT: You must conduct the entire interview in ${languageName}. All your responses must be in ${languageName}.\n\nConduct the interview in a conversational manner. Ask follow-up questions based on the user's responses. Keep your responses concise and focused.`,
       },
       ...history,
       { role: 'user', content: message },
@@ -93,7 +104,7 @@ export async function POST(request: NextRequest) {
     const openai = getOpenAIClient();
     const modelName = getModelName();
     
-    console.log(`Calling LLM model: ${modelName}`);
+    console.log(`Calling LLM model: ${modelName} in language: ${languageName}`);
     
     const completion = await openai.chat.completions.create({
       model: modelName,

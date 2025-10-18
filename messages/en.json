@@ -32,6 +32,8 @@
     "close": "Close",
     "initializing": "Initializing interview...",
     "error": "Error",
-    "errorMessage": "An error occurred. Please try again."
+    "errorMessage": "An error occurred. Please try again.",
+    "warningTitle": "⚠️ Important Notice",
+    "warningMessage": "This product is still a prototype, so all interview logs will be made public. Please do not include any sensitive information. Do not enter any personal or confidential information."
   }
 }
