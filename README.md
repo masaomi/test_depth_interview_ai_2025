@@ -86,14 +86,26 @@ LOCAL_LLM_BASE_URL=http://localhost:1234/v1
 LOCAL_LLM_MODEL=gpt-oss20B
 ```
 
-4. Run the development server:
+4. (Optional) Initialize the database with sample data:
+```bash
+pnpm seed
+```
+
+This will create:
+- 2 interview templates (Product Feedback Interview & User Needs Research)
+- 6 sample interview sessions (4 completed, 2 active)
+- 37 conversation messages in both English and Japanese
+
+⚠️ **Warning**: This command will clear all existing data in the database.
+
+5. Run the development server:
 ```bash
 pnpm dev
 # or
 npm run dev
 ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
+6. Open [http://localhost:3000](http://localhost:3000) in your browser
 
 ## Usage
 
@@ -119,6 +131,21 @@ npm run dev
 ### Viewing Conversation Logs
 
 All conversations are automatically saved in the SQLite database (`interviews.db`). You can query this database to view or analyze the interview responses.
+
+**Example queries:**
+```bash
+# View all templates
+sqlite3 interviews.db "SELECT * FROM interview_templates;"
+
+# View all sessions
+sqlite3 interviews.db "SELECT * FROM interview_sessions;"
+
+# View conversation logs for a specific session
+sqlite3 interviews.db "SELECT * FROM conversation_logs WHERE session_id='session-pf-001';"
+
+# Count total interviews
+sqlite3 interviews.db "SELECT COUNT(*) FROM interview_sessions;"
+```
 
 ## Technology Stack
 
