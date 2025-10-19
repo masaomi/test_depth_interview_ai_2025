@@ -53,6 +53,7 @@ export interface ReportDetail {
   in_progress_interviews: number;
   total_messages: number;
   avg_duration: string;
+  avg_duration_seconds?: number;
   last_conducted_at?: string;
   executive_summary?: string;
   key_findings?: string; // JSON string
