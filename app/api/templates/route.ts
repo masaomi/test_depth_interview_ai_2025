@@ -72,8 +72,8 @@ async function translateText(text: string, targetLangCode: string): Promise<stri
         { role: 'system', content: systemInstructions },
         { role: 'user', content: text },
       ],
-      temperature: 0.0,
-      max_tokens: 800,
+      ...(modelName.startsWith('gpt-5') ? {} : { temperature: 0.0 }),
+      ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 800 } : { max_tokens: 800 }),
     });
 
     let result = completion.choices[0].message.content?.trim();
@@ -87,8 +87,8 @@ async function translateText(text: string, targetLangCode: string): Promise<stri
             { role: 'system', content: 'First translate the user text to Standard German. Then rewrite that German translation into Swiss German (gsw) using natural Swiss German orthography and vocabulary. Return only the final Swiss German text without quotes.' },
             { role: 'user', content: text },
           ],
-          temperature: 0.0,
-          max_tokens: 800,
+          ...(modelName.startsWith('gpt-5') ? {} : { temperature: 0.0 }),
+          ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 800 } : { max_tokens: 800 }),
         });
         result = fallback.choices[0].message.content?.trim() || result;
       } catch (fallbackErr) {

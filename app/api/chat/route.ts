@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     const messages: Message[] = [
       {
         role: 'system',
-        content: `You are conducting an interview. ${template.prompt}\n\nIMPORTANT: You must conduct the entire interview in ${languageName}. All your responses must be in ${languageName}.\n\nConduct the interview in a conversational manner. Ask follow-up questions based on the user's responses. Keep your responses concise and focused.`,
+        content: `You are conducting an interview. ${template.prompt}\n\nREQUIREMENTS:\n- Respond exclusively in ${languageName}.\n- If the user's occupation, age, and region have not been collected yet, ask for them first in one concise message in ${languageName}.\n- After the profile is collected, proceed with topic-specific questions, one question at a time, concise and conversational.\n- Always adapt follow-up questions based on the user's answers.`,
       },
       ...history,
       { role: 'user', content: message },
@@ -106,14 +106,40 @@ export async function POST(request: NextRequest) {
     
     console.log(`Calling LLM model: ${modelName} in language: ${languageName}`);
     
+    const isGpt5 = modelName.startsWith('gpt-5');
     const completion = await openai.chat.completions.create({
       model: modelName,
       messages: messages as any,
-      temperature: 0.7,
-      max_tokens: 500,
+      ...(isGpt5 ? {} : { temperature: 0.7 }),
+      ...(isGpt5 ? { max_completion_tokens: 500 } : { max_tokens: 500 }),
     });
+    let assistantMessage = completion.choices[0]?.message?.content?.trim() || '';
 
-    const assistantMessage = completion.choices[0].message.content || 'I apologize, I did not understand. Could you please rephrase?';
+    // GPT-5 sometimes returns empty content; do a simplified retry without history
+    if (!assistantMessage && isGpt5) {
+      try {
+        console.warn('GPT-5 returned empty content, retrying with simplified prompt');
+        const simplified = await openai.chat.completions.create({
+          model: modelName,
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You are a helpful interviewer. Reply in the user\'s language. Keep it concise and ask one clear follow-up question.',
+            },
+            { role: 'user', content: message },
+          ] as any,
+          ...(isGpt5 ? { max_completion_tokens: 300 } : { max_tokens: 300, temperature: 0.7 }),
+        });
+        assistantMessage = simplified.choices[0]?.message?.content?.trim() || '';
+      } catch (e) {
+        console.warn('GPT-5 simplified retry failed');
+      }
+    }
+
+    if (!assistantMessage) {
+      assistantMessage = 'I apologize, I did not understand. Could you please rephrase?';
+    }
 
     // Save assistant message
     const saveAssistantMsg = db.prepare(

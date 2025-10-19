@@ -81,20 +81,21 @@ export async function POST(request: NextRequest) {
     const openai = getOpenAIClient();
     const modelName = getModelName();
     console.log(`Calling LLM model: ${modelName} in language: ${languageName}`);
+    const isGpt5 = modelName.startsWith('gpt-5');
     const completion = await openai.chat.completions.create({
       model: modelName,
       messages: [
         {
           role: 'system',
-          content: `You are conducting an interview. ${template.prompt}\n\nIMPORTANT: You must conduct the entire interview in ${languageName}. All your responses must be in ${languageName}.\n\nStart the interview with a warm greeting and introduce the topic. Keep your introduction brief and welcoming.`,
+          content: `You are conducting an interview. ${template.prompt}\n\nREQUIREMENTS:\n- Respond exclusively in ${languageName}. Do not use any other language.\n- First message: Give a brief, friendly greeting in ${languageName} and ask the user to provide the following three items so the interview can start smoothly: their occupation, age, and the region where they live. Ask them clearly and concisely in one message. Do not start topic-specific questions yet.\n- After the user provides these profile details, proceed with the interview topic, asking focused questions based on the template and their answers.\n- Keep responses concise and conversational, asking one question at a time.`,
         },
         {
           role: 'user',
           content: 'Please start the interview.',
         },
       ],
-      temperature: 0.7,
-      max_tokens: 300,
+      ...(isGpt5 ? {} : { temperature: 0.7 }),
+      ...(isGpt5 ? { max_completion_tokens: 300 } : { max_tokens: 300 }),
     });
 
     // Optionally translate template.title to session language for UI consumption
@@ -107,8 +108,8 @@ export async function POST(request: NextRequest) {
           { role: 'system', content: `Translate the following title to ${languageDisplay}. Only return the translated text.` },
           { role: 'user', content: template.title },
         ],
-        temperature: 0.0,
-        max_tokens: 60,
+        ...(isGpt5 ? {} : { temperature: 0.0 }),
+        ...(isGpt5 ? { max_completion_tokens: 60 } : { max_tokens: 60 }),
       });
       localizedTitle = completionTitle.choices[0].message.content?.trim() || template.title;
     } catch (e) {
