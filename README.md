@@ -2,6 +2,10 @@
 
 An AI-powered interview system that allows administrators to create interview templates and conduct time-limited interviews with users using OpenAI's GPT API.
 
+## Screenshot
+
+![AI Interview System](./public/AI_interview_system.jpg)
+
 ## Features
 
 - 🤖 AI-powered interviews using OpenAI GPT-4 or Local LLM (Ollama, LM Studio)
