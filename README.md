@@ -199,6 +199,10 @@ LOCAL_LLM_MODEL=gpt-oss20B
 - `POST /api/chat` - Send a message in the interview
 - `GET /api/chat?session_id={id}` - Get conversation history
 
+## Acknowledgments
+
+This system was developed with reference to "みらいAIインタビュー（仮）Mirai AI Interview (TBD)" created by Takahiro Anno. Thank you very much.
+
 ## License
 
 MIT
