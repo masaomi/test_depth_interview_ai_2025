@@ -33,13 +33,63 @@ db.exec(`
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES interview_sessions(id)
   );
+
+  CREATE TABLE IF NOT EXISTS report_aggregations (
+    id TEXT PRIMARY KEY,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    llm_model TEXT NOT NULL,
+    total_sessions INTEGER NOT NULL,
+    status TEXT DEFAULT 'processing'
+  );
+
+  CREATE TABLE IF NOT EXISTS report_details (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    aggregation_id TEXT NOT NULL,
+    template_id TEXT NOT NULL,
+    template_title TEXT NOT NULL,
+    language TEXT NOT NULL DEFAULT 'en',
+    total_interviews INTEGER NOT NULL,
+    completed_interviews INTEGER NOT NULL,
+    in_progress_interviews INTEGER NOT NULL,
+    total_messages INTEGER NOT NULL,
+    avg_duration TEXT,
+    avg_duration_seconds INTEGER,
+    last_conducted_at DATETIME,
+    executive_summary TEXT,
+    key_findings TEXT,
+    segment_analysis TEXT,
+    recommended_actions TEXT,
+    FOREIGN KEY (aggregation_id) REFERENCES report_aggregations(id),
+    FOREIGN KEY (template_id) REFERENCES interview_templates(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_report_details_lang 
+    ON report_details(aggregation_id, template_id, language);
+
+  CREATE INDEX IF NOT EXISTS idx_conversation_logs_session 
+    ON conversation_logs(session_id);
+
+  CREATE INDEX IF NOT EXISTS idx_sessions_template 
+    ON interview_sessions(template_id);
 `);
 
-// Add translations column if it doesn't exist (migration)
-try {
-  db.exec(`ALTER TABLE interview_templates ADD COLUMN translations TEXT`);
-} catch (e) {
-  // Column already exists, ignore
+// Lightweight migration helpers
+function ensureColumn(table: string, column: string, ddl: string) {
+  try {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all() as any[];
+    if (!cols.some((c) => c.name === column)) {
+      db.exec(ddl);
+    }
+  } catch {}
 }
+
+// Add translations column if it doesn't exist (migration)
+ensureColumn('interview_templates', 'translations', `ALTER TABLE interview_templates ADD COLUMN translations TEXT`);
+
+// Add language column to report_details if it doesn't exist (migration)
+ensureColumn('report_details', 'language', `ALTER TABLE report_details ADD COLUMN language TEXT NOT NULL DEFAULT 'en'`);
+
+// Add avg_duration_seconds if it doesn't exist (migration)
+ensureColumn('report_details', 'avg_duration_seconds', `ALTER TABLE report_details ADD COLUMN avg_duration_seconds INTEGER`);
 
 export default db;

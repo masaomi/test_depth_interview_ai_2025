@@ -11,6 +11,8 @@ export default function AdminPage() {
   const [duration, setDuration] = useState(600);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [aggregating, setAggregating] = useState(false);
+  const [aggregationMessage, setAggregationMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     fetchTemplates();
@@ -90,6 +92,42 @@ export default function AdminPage() {
     }
   };
 
+  const handleRunAggregation = async () => {
+    if (!confirm('集計を実行しますか？完了まで時間がかかる場合があります。')) {
+      return;
+    }
+
+    setAggregating(true);
+    setAggregationMessage(null);
+
+    try {
+      const response = await fetch('/api/reports', {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAggregationMessage({
+          type: 'success',
+          text: `集計が完了しました（集計ID: ${data.aggregation_id}）`
+        });
+      } else {
+        setAggregationMessage({
+          type: 'error',
+          text: '集計に失敗しました'
+        });
+      }
+    } catch (error) {
+      console.error('Error running aggregation:', error);
+      setAggregationMessage({
+        type: 'error',
+        text: '集計中にエラーが発生しました'
+      });
+    } finally {
+      setAggregating(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 dark:from-gray-900 dark:to-gray-800">
       <div className="container mx-auto px-4 py-12">
@@ -110,6 +148,24 @@ export default function AdminPage() {
             <p className="text-xl text-gray-600 dark:text-gray-300">
               Create and manage interview templates
             </p>
+            <div className="mt-6">
+              <button
+                onClick={handleRunAggregation}
+                disabled={aggregating}
+                className="px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {aggregating ? '集計処理中...' : '🔄 集計実行'}
+              </button>
+            </div>
+            {aggregationMessage && (
+              <div className={`mt-4 p-4 rounded-lg ${
+                aggregationMessage.type === 'success' 
+                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+              }`}>
+                {aggregationMessage.text}
+              </div>
+            )}
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 mb-8">
