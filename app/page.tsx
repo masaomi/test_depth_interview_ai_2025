@@ -8,6 +8,7 @@ export default function Home() {
   const [templates, setTemplates] = useState<InterviewTemplate[]>([]);
   const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [loading, setLoading] = useState(true);
+  const [showAdminButton, setShowAdminButton] = useState(false);
 
   useEffect(() => {
     fetchTemplates(selectedLanguage);
@@ -25,6 +26,14 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // Check if admin is enabled via environment variable (through API)
+    fetch('/api/admin/auth')
+      .then((r) => r.json())
+      .then((d) => setShowAdminButton(!!d.enabled))
+      .catch(() => setShowAdminButton(false));
+  }, []);
 
   const languages = [
     { code: 'en', name: 'English' },
@@ -189,12 +198,14 @@ export default function Home() {
             </div>
 
             <div className="flex justify-center gap-4 mb-8">
-              <Link
-                href="/admin"
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-              >
-                {localizedText.adminPanel}
-              </Link>
+              {showAdminButton && (
+                <Link
+                  href="/admin"
+                  className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                >
+                  {localizedText.adminPanel}
+                </Link>
+              )}
               <Link
               href={`/reports?language=${selectedLanguage}`}
                 className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"

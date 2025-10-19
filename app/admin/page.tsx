@@ -13,10 +13,36 @@ export default function AdminPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [aggregating, setAggregating] = useState(false);
   const [aggregationMessage, setAggregationMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchTemplates();
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/auth');
+        const data = await res.json();
+        if (!mounted) return;
+        setEnabled(!!data.enabled);
+        if (data.enabled) {
+          const authed = localStorage.getItem('admin_authed') === '1';
+          if (authed) setIsAuthenticated(true);
+        }
+      } finally {
+        if (mounted) setAuthLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchTemplates();
+    }
+  }, [isAuthenticated]);
 
   const fetchTemplates = async () => {
     try {
@@ -128,6 +154,82 @@ export default function AdminPage() {
     }
   };
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    try {
+      const res = await fetch('/api/admin/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      if (!res.ok) throw new Error('Unauthorized');
+      localStorage.setItem('admin_authed', '1');
+      setIsAuthenticated(true);
+    } catch {
+      setAuthError('Invalid password');
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('admin_authed');
+    setIsAuthenticated(false);
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 dark:from-gray-900 dark:to-gray-800" />
+    );
+  }
+
+  if (enabled === false) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 dark:from-gray-900 dark:to-gray-800">
+        <div className="container mx-auto px-4 py-12">
+          <div className="max-w-2xl mx-auto text-center">
+            <Link
+              href="/"
+              className="text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              ← Back to Home
+            </Link>
+            <h1 className="text-3xl font-bold mt-6 text-gray-900 dark:text-white">Admin Panel Disabled</h1>
+            <p className="mt-2 text-gray-600 dark:text-gray-300">Set ADMIN_PASSWORD to enable.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 dark:from-gray-900 dark:to-gray-800">
+        <div className="container mx-auto px-4 py-12">
+          <div className="max-w-md mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Admin Login</h1>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter admin password"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              />
+              {authError && <p className="text-sm text-red-600">{authError}</p>}
+              <button
+                type="submit"
+                className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+              >
+                Sign In
+              </button>
+              <p className="text-xs text-gray-500">Note: Session is stored in localStorage.</p>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 dark:from-gray-900 dark:to-gray-800">
       <div className="container mx-auto px-4 py-12">
@@ -139,6 +241,12 @@ export default function AdminPage() {
             >
               ← Back to Home
             </Link>
+            <button
+              onClick={handleLogout}
+              className="ml-4 px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-white rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors"
+            >
+              Logout
+            </button>
           </div>
 
           <div className="text-center mb-12">
