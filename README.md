@@ -90,6 +90,14 @@ LOCAL_LLM_BASE_URL=http://localhost:1234/v1
 LOCAL_LLM_MODEL=gpt-oss20B
 ```
 
+#### Setting up Admin Panel Authentication (Optional):
+```bash
+# .env
+ADMIN_PASSWORD=your-secure-password-here
+```
+
+If `ADMIN_PASSWORD` is set, the Admin Panel will require password authentication. If not set, the Admin Panel button will be hidden and the feature will be disabled.
+
 4. (Optional) Initialize the database with sample data:
 ```bash
 pnpm seed
@@ -115,12 +123,17 @@ npm run dev
 
 ### Admin Panel
 
-1. Navigate to the Admin Panel from the home page
-2. Create a new interview template:
+**Authentication**: The Admin Panel is protected by password authentication when `ADMIN_PASSWORD` is set in `.env`. If not configured, the Admin Panel button will be hidden.
+
+1. Navigate to the Admin Panel from the home page (if enabled)
+2. Enter the admin password if prompted
+3. Create a new interview template:
    - Enter an interview title
    - Describe what you want to ask users in natural language (like MyGPTs prompts)
    - Set the duration in seconds
-3. Save the template
+4. Save the template
+
+**Note**: Authentication session is stored in browser's localStorage for convenience.
 
 ### Conducting an Interview
 
@@ -171,6 +184,7 @@ sqlite3 interviews.db "SELECT COUNT(*) FROM interview_sessions;"
 | `LOCAL_LLM_API_KEY` | No | `dummy` | API key for local LLM server (if required) |
 | `OPENAI_API_KEY` | Yes (if not using local) | - | Your OpenAI API key |
 | `OPENAI_MODEL` | No | `gpt-4` | OpenAI model name |
+| `ADMIN_PASSWORD` | No | - | Password for Admin Panel access. If not set, Admin Panel is disabled |
 
 ### Priority
 
@@ -204,11 +218,14 @@ LOCAL_LLM_MODEL=gpt-oss20B
 ├── app/
 │   ├── admin/           # Admin panel page
 │   ├── api/             # API routes
+│   │   ├── admin/       # Admin authentication
 │   │   ├── chat/        # Chat endpoints
 │   │   ├── init/        # Interview initialization
+│   │   ├── reports/     # Report aggregation
 │   │   ├── sessions/    # Session management
 │   │   └── templates/   # Template CRUD
 │   ├── interview/[id]/  # Interview page
+│   ├── reports/         # Report pages
 │   ├── layout.tsx       # Root layout
 │   └── page.tsx         # Home page
 ├── lib/
@@ -220,15 +237,30 @@ LOCAL_LLM_MODEL=gpt-oss20B
 
 ## API Endpoints
 
+### Authentication
+- `GET /api/admin/auth` - Check if admin authentication is enabled
+- `POST /api/admin/auth` - Verify admin password
+
+### Templates
 - `GET /api/templates` - List all interview templates
 - `POST /api/templates` - Create a new template
+- `PUT /api/templates` - Update a template
 - `DELETE /api/templates?id={id}` - Delete a template
+
+### Sessions
 - `POST /api/sessions` - Create a new interview session
 - `PATCH /api/sessions` - Update session status
 - `GET /api/sessions?id={id}` - Get session details
+
+### Interview
 - `POST /api/init` - Initialize an interview
 - `POST /api/chat` - Send a message in the interview
 - `GET /api/chat?session_id={id}` - Get conversation history
+
+### Reports
+- `POST /api/reports` - Run aggregation for all templates
+- `GET /api/reports` - List all report aggregations
+- `GET /api/reports/{id}?language={lang}` - Get report details by language
 
 ## Acknowledgments
 
