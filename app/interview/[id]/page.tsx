@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Message, InterviewTemplate } from '@/lib/types';
+import { Message, InterviewTemplate, QuestionMetadata, ResponseMetadata } from '@/lib/types';
 
 export default function InterviewPage() {
   const params = useParams();
@@ -15,6 +15,9 @@ export default function InterviewPage() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [currentQuestionMetadata, setCurrentQuestionMetadata] = useState<QuestionMetadata | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+  const [scaleValue, setScaleValue] = useState<number>(3);
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [duration, setDuration] = useState(0);
   const [showExtendDialog, setShowExtendDialog] = useState(false);
@@ -39,6 +42,25 @@ export default function InterviewPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Normalize UI state when a new assistant question arrives
+  useEffect(() => {
+    if (!currentQuestionMetadata) return;
+    if (currentQuestionMetadata.type === 'scale') {
+      const min = currentQuestionMetadata.scaleMin ?? 1;
+      const max = currentQuestionMetadata.scaleMax ?? 5;
+      const mid = Math.round((min + max) / 2);
+      setScaleValue((prev) => (prev >= min && prev <= max ? prev : mid));
+      setSelectedOptions([]);
+      setInput('');
+    } else if (
+      currentQuestionMetadata.type === 'single_choice' ||
+      currentQuestionMetadata.type === 'multi_choice'
+    ) {
+      setSelectedOptions([]);
+      setInput('');
+    }
+  }, [currentQuestionMetadata]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -81,7 +103,9 @@ export default function InterviewPage() {
       });
       const initData = await initRes.json();
 
-      setMessages([{ role: 'assistant', content: initData.message }]);
+      const initialMetadata: QuestionMetadata = { type: 'text' };
+      setMessages([{ role: 'assistant', content: initData.message, metadata: initialMetadata }]);
+      setCurrentQuestionMetadata(initialMetadata);
       setTimeRemaining(initData.template.duration);
 
       // Start timer
@@ -371,29 +395,75 @@ export default function InterviewPage() {
   const warningStrings = getWarningStrings(language);
 
   const sendMessage = async () => {
-    if (!input.trim() || sending) return;
+    // Validate input based on question type
+    if (sending) return;
+    
+    let userMessage = '';
+    let responseMetadata: ResponseMetadata | undefined;
 
-    const userMessage = input.trim();
+    if (currentQuestionMetadata) {
+      switch (currentQuestionMetadata.type) {
+        case 'text':
+          if (!input.trim()) return;
+          userMessage = input.trim();
+          responseMetadata = { questionType: 'text' };
+          break;
+        case 'single_choice':
+          if (selectedOptions.length === 0) return;
+          userMessage = selectedOptions[0];
+          responseMetadata = { questionType: 'single_choice', selectedOptions: [selectedOptions[0]] };
+          break;
+        case 'multi_choice':
+          if (selectedOptions.length === 0) return;
+          userMessage = selectedOptions.join(', ');
+          responseMetadata = { questionType: 'multi_choice', selectedOptions: [...selectedOptions] };
+          break;
+        case 'scale':
+          userMessage = scaleValue.toString();
+          responseMetadata = { questionType: 'scale', scaleValue };
+          break;
+        default:
+          if (!input.trim()) return;
+          userMessage = input.trim();
+          responseMetadata = { questionType: 'text' };
+      }
+    } else {
+      if (!input.trim()) return;
+      userMessage = input.trim();
+      responseMetadata = { questionType: 'text' };
+    }
+
+    // Reset input states
     setInput('');
+    setSelectedOptions([]);
+    setScaleValue(3);
     setSending(true);
 
-    setMessages((prev) => [...prev, { role: 'user', content: userMessage }]);
+    setMessages((prev) => [...prev, { role: 'user', content: userMessage, metadata: responseMetadata }]);
 
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, message: userMessage }),
+        body: JSON.stringify({ 
+          session_id: sessionId, 
+          message: userMessage,
+          metadata: responseMetadata
+        }),
       });
       const data = await response.json();
 
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.message }]);
+      const assistantMetadata = data.metadata || { type: 'text' };
+      setMessages((prev) => [...prev, { role: 'assistant', content: data.message, metadata: assistantMetadata }]);
+      setCurrentQuestionMetadata(assistantMetadata);
     } catch (error) {
       console.error('Error sending message:', error);
+      const errorMetadata: QuestionMetadata = { type: 'text' };
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: 'Sorry, an error occurred. Please try again.' },
+        { role: 'assistant', content: 'Sorry, an error occurred. Please try again.', metadata: errorMetadata },
       ]);
+      setCurrentQuestionMetadata(errorMetadata);
     } finally {
       setSending(false);
     }
@@ -474,8 +544,8 @@ export default function InterviewPage() {
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
                   {overviewStrings.overviewTitle}
                 </h2>
-                <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                  {templateData?.prompt || overviewStrings.overviewDescription}
+                <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">
+                  {templateData?.overview || templateData?.prompt || overviewStrings.overviewDescription}
                 </p>
               </div>
 
@@ -600,23 +670,122 @@ export default function InterviewPage() {
 
           {/* Input */}
           <div className="border-t dark:border-gray-700 p-4">
+            {/* Render different input UI based on question type */}
+            {currentQuestionMetadata && (
+              <div className="mb-4">
+                {currentQuestionMetadata.type === 'single_choice' && currentQuestionMetadata.options && (
+                  <div className="space-y-2">
+                    {currentQuestionMetadata.options.map((option, idx) => (
+                      <label
+                        key={idx}
+                        className="flex items-center space-x-3 p-3 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <input
+                          type="radio"
+                          name="single-choice"
+                          value={option}
+                          checked={selectedOptions.includes(option)}
+                          onChange={() => setSelectedOptions([option])}
+                          disabled={sending || showExtendDialog || showThankYou || showConfirmEnd}
+                          className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-gray-900 dark:text-white">{option}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                {currentQuestionMetadata.type === 'multi_choice' && currentQuestionMetadata.options && (
+                  <div className="space-y-2">
+                    {currentQuestionMetadata.options.map((option, idx) => (
+                      <label
+                        key={idx}
+                        className="flex items-center space-x-3 p-3 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          value={option}
+                          checked={selectedOptions.includes(option)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedOptions([...selectedOptions, option]);
+                            } else {
+                              setSelectedOptions(selectedOptions.filter((o) => o !== option));
+                            }
+                          }}
+                          disabled={sending || showExtendDialog || showThankYou || showConfirmEnd}
+                          className="w-4 h-4 text-indigo-600 focus:ring-indigo-500 rounded"
+                        />
+                        <span className="text-gray-900 dark:text-white">{option}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                {currentQuestionMetadata.type === 'scale' && (
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        {currentQuestionMetadata.scaleMinLabel ?? (currentQuestionMetadata.scaleMin ?? 1).toString()}
+                      </span>
+                      <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                        {scaleValue}
+                      </span>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        {currentQuestionMetadata.scaleMaxLabel ?? (currentQuestionMetadata.scaleMax ?? 5).toString()}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={currentQuestionMetadata.scaleMin ?? 1}
+                      max={currentQuestionMetadata.scaleMax ?? 5}
+                      value={scaleValue}
+                      onChange={(e) => setScaleValue(parseInt(e.target.value))}
+                      disabled={sending || showExtendDialog || showThankYou || showConfirmEnd}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-indigo-600"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Text input or Submit button */}
             <div className="flex gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder="Type your response..."
-                disabled={sending || showExtendDialog || showThankYou || showConfirmEnd}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-700 dark:text-white disabled:opacity-50"
-              />
-              <button
-                onClick={sendMessage}
-                disabled={sending || !input.trim() || showExtendDialog || showThankYou || showConfirmEnd}
-                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-50"
-              >
-                Send
-              </button>
+              {(!currentQuestionMetadata || currentQuestionMetadata.type === 'text') ? (
+                <>
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    placeholder="Type your response..."
+                    disabled={sending || showExtendDialog || showThankYou || showConfirmEnd}
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-700 dark:text-white disabled:opacity-50"
+                  />
+                  <button
+                    onClick={sendMessage}
+                    disabled={sending || !input.trim() || showExtendDialog || showThankYou || showConfirmEnd}
+                    className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-50"
+                  >
+                    Send
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={sendMessage}
+                  disabled={
+                    sending ||
+                    showExtendDialog ||
+                    showThankYou ||
+                    showConfirmEnd ||
+                    (currentQuestionMetadata.type === 'single_choice' && selectedOptions.length === 0) ||
+                    (currentQuestionMetadata.type === 'multi_choice' && selectedOptions.length === 0)
+                  }
+                  className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-50"
+                >
+                  Submit
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -10,6 +10,7 @@ db.exec(`
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     prompt TEXT NOT NULL,
+    overview TEXT,
     duration INTEGER NOT NULL DEFAULT 600,
     translations TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -30,6 +31,7 @@ db.exec(`
     session_id TEXT NOT NULL,
     role TEXT NOT NULL,
     content TEXT NOT NULL,
+    metadata TEXT,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES interview_sessions(id)
   );
@@ -91,5 +93,11 @@ ensureColumn('report_details', 'language', `ALTER TABLE report_details ADD COLUM
 
 // Add avg_duration_seconds if it doesn't exist (migration)
 ensureColumn('report_details', 'avg_duration_seconds', `ALTER TABLE report_details ADD COLUMN avg_duration_seconds INTEGER`);
+
+// Add metadata column to conversation_logs if it doesn't exist (migration)
+ensureColumn('conversation_logs', 'metadata', `ALTER TABLE conversation_logs ADD COLUMN metadata TEXT`);
+
+// Add overview column to interview_templates if it doesn't exist (migration)
+ensureColumn('interview_templates', 'overview', `ALTER TABLE interview_templates ADD COLUMN overview TEXT`);
 
 export default db;

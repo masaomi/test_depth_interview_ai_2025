@@ -118,11 +118,12 @@ export async function POST(request: NextRequest) {
 
     const greeting = completion.choices[0].message.content || 'Hello! Thank you for participating in this interview. Let\'s begin.';
 
-    // Save the greeting
+    // Save the greeting (no metadata for initial greeting as it's just text)
     const saveMsg = db.prepare(
-      'INSERT INTO conversation_logs (session_id, role, content) VALUES (?, ?, ?)'
+      'INSERT INTO conversation_logs (session_id, role, content, metadata) VALUES (?, ?, ?, ?)'
     );
-    saveMsg.run(session_id, 'assistant', greeting);
+    const metadata = JSON.stringify({ type: 'text' });
+    saveMsg.run(session_id, 'assistant', greeting, metadata);
 
     return NextResponse.json({ 
       message: greeting,

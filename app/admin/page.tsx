@@ -393,9 +393,24 @@ export default function AdminPage() {
                     <p className="text-gray-600 dark:text-gray-300 mb-2">
                       Duration: {Math.floor(template.duration / 60)} minutes
                     </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {template.prompt}
-                    </p>
+                    {template.overview && (
+                      <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+                        <p className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-1">
+                          📋 Generated Overview (displayed to participants):
+                        </p>
+                        <p className="text-sm text-blue-800 dark:text-blue-300 whitespace-pre-line">
+                          {template.overview}
+                        </p>
+                      </div>
+                    )}
+                    <details className="text-sm">
+                      <summary className="cursor-pointer text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                        View original prompt
+                      </summary>
+                      <p className="mt-2 text-gray-500 dark:text-gray-400 whitespace-pre-line">
+                        {template.prompt}
+                      </p>
+                    </details>
                   </div>
                 ))}
               </div>

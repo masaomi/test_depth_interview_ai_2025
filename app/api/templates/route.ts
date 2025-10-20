@@ -46,6 +46,47 @@ const languageNames: Record<string, string> = {
 
 const SUPPORTED_LANGUAGES = ['en', 'ja', 'es', 'fr', 'de', 'zh', 'it', 'rm', 'gsw'];
 
+// Generate a formatted overview from the prompt
+async function generateOverview(prompt: string): Promise<string> {
+  const openai = getOpenAIClient();
+  const modelName = getModelName();
+
+  try {
+    // Check if prompt is JSON or very long text
+    let isJSON = false;
+    try {
+      JSON.parse(prompt);
+      isJSON = true;
+    } catch {
+      isJSON = false;
+    }
+
+    const systemPrompt = isJSON
+      ? 'You are a helpful assistant. The user will provide interview instructions in JSON format. Extract and format the key information into a clear, readable overview for interview participants. Keep it concise (3-5 sentences) and focused on what the interview covers. Write in a friendly, professional tone.'
+      : 'You are a helpful assistant. The user will provide interview instructions. Format them into a clear, readable overview for interview participants. If the text is long, create a concise summary (3-5 sentences). Keep the tone friendly and professional.';
+
+    const completion = await openai.chat.completions.create({
+      model: modelName,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt },
+      ],
+      ...(modelName.startsWith('gpt-5') ? {} : { temperature: 0.3 }),
+      ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 500 } : { max_tokens: 500 }),
+    });
+
+    const overview = completion.choices[0].message.content?.trim();
+    return overview || prompt;
+  } catch (error) {
+    console.error('Failed to generate overview, using original prompt:', error);
+    // Fallback: if prompt is too long, truncate it
+    if (prompt.length > 500) {
+      return prompt.substring(0, 497) + '...';
+    }
+    return prompt;
+  }
+}
+
 async function translateText(text: string, targetLangCode: string): Promise<string> {
   const languageName = languageNames[targetLangCode] || 'English';
   const openai = getOpenAIClient();
@@ -119,9 +160,9 @@ export async function GET(request: NextRequest) {
     const translated = templates.map((t) => {
       if (t.translations) {
         try {
-          const translations = JSON.parse(t.translations) as Record<string, { title: string; prompt: string }>;
+          const translations = JSON.parse(t.translations) as Record<string, { title: string; prompt: string; overview?: string }>;
           if (translations[lang]) {
-            return { ...t, title: translations[lang].title, prompt: translations[lang].prompt };
+            return { ...t, title: translations[lang].title, prompt: translations[lang].prompt, overview: translations[lang].overview || t.overview };
           }
         } catch (e) {
           console.error('Error parsing translations:', e);
@@ -149,18 +190,23 @@ export async function POST(request: NextRequest) {
 
     const id = randomUUID();
 
+    // Generate overview from prompt
+    console.log('Generating overview...');
+    const overview = await generateOverview(prompt);
+
     // Generate translations for all supported languages in parallel
     console.log('Generating translations for all languages...');
     const translationPromises = SUPPORTED_LANGUAGES.map(async (lang) => {
-      const [translatedTitle, translatedPrompt] = await Promise.all([
+      const [translatedTitle, translatedPrompt, translatedOverview] = await Promise.all([
         translateText(title, lang),
         translateText(prompt, lang),
+        translateText(overview, lang),
       ]);
-      return [lang, { title: translatedTitle, prompt: translatedPrompt }] as const;
+      return [lang, { title: translatedTitle, prompt: translatedPrompt, overview: translatedOverview }] as const;
     });
 
     const translationResults = await Promise.all(translationPromises);
-    const translations: Record<string, { title: string; prompt: string }> = {};
+    const translations: Record<string, { title: string; prompt: string; overview?: string }> = {};
     translationResults.forEach(([lang, translation]) => {
       translations[lang] = translation;
     });
@@ -168,12 +214,12 @@ export async function POST(request: NextRequest) {
     const translationsJson = JSON.stringify(translations);
 
     const stmt = db.prepare(
-      'INSERT INTO interview_templates (id, title, prompt, duration, translations) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO interview_templates (id, title, prompt, overview, duration, translations) VALUES (?, ?, ?, ?, ?, ?)'
     );
-    stmt.run(id, title, prompt, duration || 600, translationsJson);
+    stmt.run(id, title, prompt, overview, duration || 600, translationsJson);
 
-    console.log('Template created with translations for all languages');
-    return NextResponse.json({ id, title, prompt, duration: duration || 600, translations: translationsJson });
+    console.log('Template created with overview and translations for all languages');
+    return NextResponse.json({ id, title, prompt, overview, duration: duration || 600, translations: translationsJson });
   } catch (error) {
     console.error('Error creating template:', error);
     return NextResponse.json({ error: 'Failed to create template' }, { status: 500 });
@@ -189,18 +235,23 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ID, title and prompt are required' }, { status: 400 });
     }
 
+    // Generate overview from prompt
+    console.log('Regenerating overview...');
+    const overview = await generateOverview(prompt);
+
     // Generate translations for all supported languages in parallel
     console.log('Regenerating translations for all languages...');
     const translationPromises = SUPPORTED_LANGUAGES.map(async (lang) => {
-      const [translatedTitle, translatedPrompt] = await Promise.all([
+      const [translatedTitle, translatedPrompt, translatedOverview] = await Promise.all([
         translateText(title, lang),
         translateText(prompt, lang),
+        translateText(overview, lang),
       ]);
-      return [lang, { title: translatedTitle, prompt: translatedPrompt }] as const;
+      return [lang, { title: translatedTitle, prompt: translatedPrompt, overview: translatedOverview }] as const;
     });
 
     const translationResults = await Promise.all(translationPromises);
-    const translations: Record<string, { title: string; prompt: string }> = {};
+    const translations: Record<string, { title: string; prompt: string; overview?: string }> = {};
     translationResults.forEach(([lang, translation]) => {
       translations[lang] = translation;
     });
@@ -208,12 +259,12 @@ export async function PUT(request: NextRequest) {
     const translationsJson = JSON.stringify(translations);
 
     const stmt = db.prepare(
-      'UPDATE interview_templates SET title = ?, prompt = ?, duration = ?, translations = ? WHERE id = ?'
+      'UPDATE interview_templates SET title = ?, prompt = ?, overview = ?, duration = ?, translations = ? WHERE id = ?'
     );
-    stmt.run(title, prompt, duration || 600, translationsJson, id);
+    stmt.run(title, prompt, overview, duration || 600, translationsJson, id);
 
-    console.log('Template updated with translations for all languages');
-    return NextResponse.json({ id, title, prompt, duration: duration || 600, translations: translationsJson });
+    console.log('Template updated with overview and translations for all languages');
+    return NextResponse.json({ id, title, prompt, overview, duration: duration || 600, translations: translationsJson });
   } catch (error) {
     console.error('Error updating template:', error);
     return NextResponse.json({ error: 'Failed to update template' }, { status: 500 });
