@@ -2,6 +2,7 @@
   "name": "test_depth_interview_ai_2025",
   "version": "0.1.0",
   "private": true,
+  "author": "GenomicsChain / Masaomi Hatakeyama",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",

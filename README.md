@@ -268,5 +268,7 @@ This system was developed with reference to "みらいAIインタビュー（仮
 
 ## License
 
-MIT
+MIT License - Copyright (c) 2025 GenomicsChain / Masaomi Hatakeyama
+
+See [LICENSE](./LICENSE) file for details.
 
