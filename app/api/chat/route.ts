@@ -50,6 +50,68 @@ function normalizeQuestionMetadata(ai: Partial<AIResponse>): QuestionMetadata {
   return { type: 'text' };
 }
 
+// Robustly extract the first valid-looking JSON object from arbitrary text
+function extractFirstJsonObject(text: string): string | null {
+  if (!text) return null;
+  // Fast path: code fence with json
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenceMatch && fenceMatch[1]) {
+    return fenceMatch[1].trim();
+  }
+  // Brace matching
+  const start = text.indexOf('{');
+  if (start < 0) return null;
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        return text.slice(start, i + 1);
+      }
+    }
+  }
+  return null;
+}
+
+async function repairResponseToJson(openai: OpenAI, modelName: string, raw: string): Promise<AIResponse | null> {
+  try {
+    const prompt = `Convert the following assistant output into STRICT VALID JSON matching this exact schema keys and types.
+Schema:
+{
+  "question": string,
+  "type": "text" | "single_choice" | "multi_choice" | "scale",
+  "options"?: string[],
+  "scaleMin"?: number,
+  "scaleMax"?: number,
+  "scaleMinLabel"?: string,
+  "scaleMaxLabel"?: string
+}
+
+Rules:
+- Output ONLY the JSON object, no code fences, no commentary.
+- Use double quotes for all keys and strings.
+- No trailing commas.
+
+CONTENT:
+${raw}`;
+
+    const isGpt5 = modelName.startsWith('gpt-5');
+    const completion = await openai.chat.completions.create({
+      model: modelName,
+      messages: [{ role: 'user', content: prompt }] as any,
+      ...(isGpt5 ? { max_completion_tokens: 400 } : { max_tokens: 400, temperature: 0 }),
+    });
+    const repaired = completion.choices[0]?.message?.content?.trim() || '';
+    const json = extractFirstJsonObject(repaired) || repaired;
+    return JSON.parse(json) as AIResponse;
+  } catch (e) {
+    console.warn('JSON repair attempt failed:', e);
+    return null;
+  }
+}
+
 function getOpenAIClient() {
   const provider = process.env.LLM_PROVIDER;
   
@@ -142,7 +204,7 @@ export async function POST(request: NextRequest) {
     const messages: Message[] = [
       {
         role: 'system',
-        content: `You are conducting an interview. ${template.prompt}\n\nREQUIREMENTS:\n- Respond exclusively in ${languageName}.\n- If the user's occupation, age, and region have not been collected yet, ask for them first in one concise message in ${languageName}.\n- After the profile is collected, proceed with topic-specific questions, one question at a time, concise and conversational.\n- Always adapt follow-up questions based on the user's answers.\n\nRESPONSE FORMAT:\nYou MUST respond with a valid JSON object with the following structure:\n{\n  "question": "your question text in ${languageName}",\n  "type": "text" | "single_choice" | "multi_choice" | "scale",\n  "options": ["option1", "option2", ...] (only for single_choice or multi_choice),\n  "scaleMin": 1 (only for scale, default 1),\n  "scaleMax": 5 (only for scale, default 5),\n  "scaleMinLabel": "label for minimum" (optional, for scale),\n  "scaleMaxLabel": "label for maximum" (optional, for scale)\n}\n\nQUESTION TYPE SELECTION:\n- Use "text" for open-ended questions requiring detailed responses\n- Use "single_choice" when there are clear mutually exclusive options (provide 2-5 options)\n- Use "multi_choice" when multiple selections are valid (provide 2-7 options)\n- Use "scale" for rating, agreement level, or satisfaction questions (1-5 Likert scale)\n\nIMPORTANT: Return ONLY the JSON object, no additional text before or after.`,
+        content: `You are conducting an interview. ${template.prompt}\n\nREQUIREMENTS:\n- Respond exclusively in ${languageName}.\n- If the user's occupation, age, and region have not been collected yet, ask for them first in one concise message in ${languageName}.\n- After the profile is collected, proceed with topic-specific questions, one question at a time, concise and conversational.\n- Always adapt follow-up questions based on the user's answers.\n\nRESPONSE FORMAT (STRICT):\nReturn a single JSON object with this schema:\n{\n  "question": "your question text in ${languageName}",\n  "type": "text" | "single_choice" | "multi_choice" | "scale",\n  "options": ["option1", "option2", ...],\n  "scaleMin": 1,\n  "scaleMax": 5,\n  "scaleMinLabel": "...",\n  "scaleMaxLabel": "..."\n}\nRules:\n- Output ONLY the JSON object.\n- Do NOT include code fences (no triple backticks).\n- Use double quotes for all keys/strings.\n- No comments, no preface, no trailing commas.`,
       },
       ...history,
       { role: 'user', content: message },
@@ -195,8 +257,8 @@ export async function POST(request: NextRequest) {
     
     try {
       // Try to extract JSON from the response (in case there's extra text)
-      const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-      const jsonString = jsonMatch ? jsonMatch[0] : rawResponse;
+      const extracted = extractFirstJsonObject(rawResponse);
+      const jsonString = extracted || rawResponse;
       aiResponse = JSON.parse(jsonString) as AIResponse;
       
       // Validate and set defaults
@@ -207,13 +269,27 @@ export async function POST(request: NextRequest) {
       // Build normalized question metadata (handles synonyms and defaults)
       questionMetadata = normalizeQuestionMetadata(aiResponse as any);
     } catch (parseError) {
-      console.warn('Failed to parse AI response as JSON, falling back to text type:', parseError);
-      // Fallback: treat as plain text
-      aiResponse = {
-        question: rawResponse,
-        type: 'text',
-      };
-      questionMetadata = { type: 'text' };
+      console.warn('Failed to parse AI response as JSON, attempting repair:', parseError);
+      // Attempt a repair call to coerce into strict JSON
+      let repaired: AIResponse | null = null;
+      try {
+        const openaiForRepair = getOpenAIClient();
+        const modelForRepair = getModelName();
+        repaired = await repairResponseToJson(openaiForRepair, modelForRepair, rawResponse);
+      } catch {}
+
+      if (repaired && repaired.question && repaired.type) {
+        aiResponse = repaired;
+        questionMetadata = normalizeQuestionMetadata(aiResponse as any);
+      } else {
+        console.warn('JSON repair failed; falling back to text');
+        // Fallback: treat as plain text
+        aiResponse = {
+          question: rawResponse,
+          type: 'text',
+        };
+        questionMetadata = { type: 'text' };
+      }
     }
 
     // Save assistant message with metadata
