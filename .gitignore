@@ -46,3 +46,6 @@ next-env.d.ts
 
 # logs
 command.log
+
+# temporary backup
+.bak
