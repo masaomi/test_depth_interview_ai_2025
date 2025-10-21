@@ -119,6 +119,187 @@ npm run dev
 
 6. Open [http://localhost:3000](http://localhost:3000) in your browser
 
+## Production Deployment
+
+### Basic Steps
+
+1. Build the application for production:
+```bash
+pnpm build
+```
+
+2. Start the production server:
+```bash
+pnpm start
+```
+
+By default, the server runs on port 3000. To specify a different port:
+```bash
+# Using -p option (recommended)
+pnpm start -p 3090
+
+# Or using PORT environment variable
+PORT=3090 pnpm start
+```
+
+### Environment Variables for Production
+
+You have several options for configuring environment variables in production:
+
+#### Option A: Using `.env.production` File
+
+```bash
+# Copy from example file
+cp env.openai.example .env.production
+# or
+cp env.ollama.example .env.production
+
+# Edit with your production settings
+nano .env.production
+```
+
+⚠️ **Security Note**: Always set proper file permissions for your environment file:
+```bash
+chmod 600 .env.production
+```
+
+#### Option B: System Environment Variables
+
+Set environment variables directly in your server environment:
+```bash
+# For OpenAI API
+export OPENAI_API_KEY=your_openai_api_key_here
+export OPENAI_MODEL=gpt-4
+export ADMIN_PASSWORD=your-secure-password
+
+# For Local LLM
+export LLM_PROVIDER=local
+export LOCAL_LLM_BASE_URL=http://localhost:11434/v1
+export LOCAL_LLM_MODEL=gpt-oss20B
+export ADMIN_PASSWORD=your-secure-password
+
+# Build and start
+pnpm build && pnpm start
+```
+
+#### Option C: Using Process Manager (Recommended) ✨
+
+For production environments, using a process manager like PM2 is **highly recommended** for:
+- Automatic restarts on crashes
+- Easy process monitoring
+- Log management
+- Zero-downtime reloads
+
+```bash
+# Install PM2 globally
+npm install -g pm2
+
+# Create ecosystem.config.js for PM2
+cat > ecosystem.config.js << 'EOF'
+module.exports = {
+  apps: [{
+    name: 'interview-ai',
+    script: 'node_modules/.bin/next',
+    args: 'start -p 3090',
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: '1G',
+    env: {
+      NODE_ENV: 'production',
+      // Add your environment variables here
+      OPENAI_API_KEY: 'your_openai_api_key_here',
+      ADMIN_PASSWORD: 'your-secure-password'
+    }
+  }]
+}
+EOF
+
+# Start with PM2
+pm2 start ecosystem.config.js
+
+# Save PM2 process list
+pm2 save
+
+# Set PM2 to start on system boot
+pm2 startup
+```
+
+**PM2 Common Commands:**
+```bash
+# View logs
+pm2 logs interview-ai
+
+# Restart application
+pm2 restart interview-ai
+
+# Stop application
+pm2 stop interview-ai
+
+# View process status
+pm2 status
+
+# Monitor processes
+pm2 monit
+```
+
+### Production Checklist
+
+- [ ] Set `ADMIN_PASSWORD` for security
+- [ ] Configure appropriate LLM provider (OpenAI or Local)
+- [ ] Set file permissions: `chmod 600 .env.production` (if using .env.production)
+- [ ] Ensure `interviews.db` has proper read/write permissions
+- [ ] Verify local LLM server is running (if using `LLM_PROVIDER=local`)
+- [ ] Consider using PM2 or similar process manager
+- [ ] Set up proper logging and monitoring
+- [ ] Configure firewall rules if needed
+
+### Docker Deployment (Optional)
+
+For containerized deployment, create a `Dockerfile`:
+
+```dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy package files
+COPY package.json pnpm-lock.yaml ./
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy application files
+COPY . .
+
+# Build application
+RUN pnpm build
+
+# Expose port
+EXPOSE 3000
+
+# Start application
+CMD ["pnpm", "start"]
+```
+
+Build and run:
+```bash
+# Build image
+docker build -t interview-ai .
+
+# Run container
+docker run -d \
+  -p 3090:3000 \
+  -e OPENAI_API_KEY=your_key \
+  -e ADMIN_PASSWORD=your_password \
+  -v $(pwd)/interviews.db:/app/interviews.db \
+  --name interview-ai \
+  interview-ai
+```
+
 ## Usage
 
 ### Admin Panel
