@@ -436,6 +436,49 @@ export async function POST(request: NextRequest) {
           workers.push(runWorker());
         }
         await Promise.all(workers);
+
+        // Safety check: ensure a row exists for every target language
+        try {
+          const existingLangsStmt = db.prepare(`
+            SELECT language FROM report_details
+            WHERE aggregation_id = ? AND template_id = ?
+          `);
+          const existingRows = existingLangsStmt.all(aggregationId, template.id) as Array<{ language: string }>;
+          const existing = new Set(existingRows.map(r => r.language));
+          const missing = languages.filter(l => !existing.has(l));
+
+          if (missing.length > 0) {
+            for (const lang of missing) {
+              const fallback = englishAnalysis || {
+                executive_summary: '',
+                key_findings: [],
+                segment_analysis: '',
+                recommended_actions: [],
+              };
+              runAggregation(() => {
+                insertDetail.run(
+                  aggregationId,
+                  template.id,
+                  template.title,
+                  lang,
+                  totalInterviews,
+                  completedSessions.length,
+                  inProgressSessions.length,
+                  totalMessages,
+                  avgDuration,
+                  avgDurationSeconds,
+                  lastConducted,
+                  fallback.executive_summary,
+                  JSON.stringify(fallback.key_findings),
+                  fallback.segment_analysis,
+                  JSON.stringify(fallback.recommended_actions)
+                );
+              });
+            }
+          }
+        } catch (verifyErr) {
+          console.warn('Verification of language rows failed:', verifyErr);
+        }
       } else {
         // No analysis available, insert empty records for all languages
         for (const lang of languages) {

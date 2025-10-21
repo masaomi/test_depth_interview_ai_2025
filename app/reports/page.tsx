@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { ReportAggregation, ReportDetail } from '@/lib/types';
 
 // Locale and text helpers
@@ -290,15 +289,20 @@ const formatDuration = (seconds: number | undefined | null, lang: string, fallba
 };
 
 export default function ReportsPage() {
-  const searchParams = useSearchParams();
   const [aggregations, setAggregations] = useState<ReportAggregation[]>([]);
   const [selectedAggregationId, setSelectedAggregationId] = useState<string | null>(null);
-  const [selectedLanguage, setSelectedLanguage] = useState(searchParams?.get('language') || 'ja');
+  const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [reportDetails, setReportDetails] = useState<ReportDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [detailsLoading, setDetailsLoading] = useState(false);
 
   const t = getTexts(selectedLanguage);
+
+  // Load language preference from localStorage (saved from home page)
+  useEffect(() => {
+    const savedLang = localStorage.getItem('app_language') || 'en';
+    setSelectedLanguage(savedLang);
+  }, []);
 
   useEffect(() => {
     fetchAggregations();
@@ -427,45 +431,23 @@ export default function ReportsPage() {
             </h1>
           </div>
 
-          {/* Aggregation and Language Selector */}
+          {/* Aggregation Selector */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t.selectAggregation}
-                </label>
-                <select
-                  value={selectedAggregationId || ''}
-                  onChange={(e) => setSelectedAggregationId(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                >
-                  {aggregations.map((agg) => (
-                    <option key={agg.id} value={agg.id}>
-                      {formatDate(agg.created_at)} - {agg.llm_model} ({agg.status})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t.displayLanguage}
-                </label>
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                >
-                  <option value="en">English</option>
-                  <option value="ja">日本語</option>
-                  <option value="es">Español</option>
-                  <option value="fr">Français</option>
-                  <option value="de">Deutsch</option>
-                  <option value="zh">中文</option>
-                  <option value="it">Italiano</option>
-                  <option value="rm">Rumantsch</option>
-                  <option value="gsw">Schwiizerdütsch</option>
-                </select>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {t.selectAggregation}
+              </label>
+              <select
+                value={selectedAggregationId || ''}
+                onChange={(e) => setSelectedAggregationId(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+                {aggregations.map((agg) => (
+                  <option key={agg.id} value={agg.id}>
+                    {formatDate(agg.created_at)} - {agg.llm_model} ({agg.status})
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -574,7 +556,7 @@ export default function ReportsPage() {
                         </td>
                         <td className="px-6 py-4 text-center">
                           <Link
-                            href={`/reports/${selectedAggregationId}/${detail.template_id}?language=${selectedLanguage}`}
+                            href={`/reports/${selectedAggregationId}/${detail.template_id}`}
                             className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 text-sm font-medium"
                           >
                             {t.viewSummary}

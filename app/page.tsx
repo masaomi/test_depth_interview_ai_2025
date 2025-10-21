@@ -11,7 +11,17 @@ export default function Home() {
   const [showAdminButton, setShowAdminButton] = useState(false);
 
   useEffect(() => {
+    // Load language preference from localStorage
+    const savedLang = localStorage.getItem('app_language');
+    if (savedLang) {
+      setSelectedLanguage(savedLang);
+    }
+  }, []);
+
+  useEffect(() => {
     fetchTemplates(selectedLanguage);
+    // Save language preference to localStorage whenever it changes
+    localStorage.setItem('app_language', selectedLanguage);
   }, [selectedLanguage]);
 
   const fetchTemplates = async (lang: string) => {
@@ -207,7 +217,7 @@ export default function Home() {
                 </Link>
               )}
               <Link
-              href={`/reports?language=${selectedLanguage}`}
+                href="/reports"
                 className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
               >
                 📊 {selectedLanguage === 'ja' ? '集計結果を見る' : 'View Reports'}

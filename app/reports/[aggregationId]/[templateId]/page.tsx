@@ -2,22 +2,29 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { ReportAggregation, ReportDetail } from '@/lib/types';
 
 export default function ReportDetailPage() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const aggregationId = params?.aggregationId as string;
   const templateId = params?.templateId as string;
-  const language = searchParams?.get('language') || 'ja';
+  const [language, setLanguage] = useState('en');
 
   const [aggregation, setAggregation] = useState<ReportAggregation | null>(null);
   const [reportDetail, setReportDetail] = useState<ReportDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Load language preference from localStorage (saved from home page)
   useEffect(() => {
-    fetchReportDetail();
+    const savedLang = localStorage.getItem('app_language') || 'en';
+    setLanguage(savedLang);
+  }, []);
+
+  useEffect(() => {
+    if (language) {
+      fetchReportDetail();
+    }
   }, [aggregationId, templateId, language]);
 
   const fetchReportDetail = async () => {
