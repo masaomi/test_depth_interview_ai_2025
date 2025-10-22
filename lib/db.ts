@@ -4,6 +4,9 @@ import path from 'path';
 const dbPath = path.join(process.cwd(), 'interviews.db');
 const db = new Database(dbPath);
 
+// Ensure foreign key constraints are enforced
+db.pragma('foreign_keys = ON');
+
 // Initialize database schema
 db.exec(`
   CREATE TABLE IF NOT EXISTS interview_templates (

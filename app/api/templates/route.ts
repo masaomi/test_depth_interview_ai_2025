@@ -280,11 +280,46 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Template ID is required' }, { status: 400 });
     }
 
-    const stmt = db.prepare('DELETE FROM interview_templates WHERE id = ?');
-    stmt.run(id);
+    // Debug counts before deletion
+    try {
+      const preSessions = db.prepare('SELECT COUNT(*) as c FROM interview_sessions WHERE template_id = ?').get(id) as any;
+      const preLogs = db.prepare(
+        'SELECT COUNT(*) as c FROM conversation_logs WHERE session_id IN (SELECT id FROM interview_sessions WHERE template_id = ? )'
+      ).get(id) as any;
+      const preDetails = db.prepare('SELECT COUNT(*) as c FROM report_details WHERE template_id = ?').get(id) as any;
+      console.log('[DELETE /api/templates] preCounts', { templateId: id, sessions: preSessions?.c, logs: preLogs?.c, details: preDetails?.c });
+    } catch (e) {
+      console.warn('[DELETE /api/templates] failed to fetch preCounts', e);
+    }
+
+    const deleteInTransaction = db.transaction((templateId: string) => {
+      // 1) Delete conversation logs for any sessions of this template (single statement with IN)
+      const delLogs = db.prepare(
+        'DELETE FROM conversation_logs WHERE session_id IN (SELECT id FROM interview_sessions WHERE template_id = ? )'
+      ).run(templateId);
+      console.log('[DELETE /api/templates] deleted logs', delLogs?.changes ?? 0);
+
+      // 2) Delete sessions for this template
+      const delSessions = db.prepare('DELETE FROM interview_sessions WHERE template_id = ?').run(templateId);
+      console.log('[DELETE /api/templates] deleted sessions', delSessions?.changes ?? 0);
+
+      // 3) Delete report details that reference this template
+      const delDetails = db.prepare('DELETE FROM report_details WHERE template_id = ?').run(templateId);
+      console.log('[DELETE /api/templates] deleted report_details', delDetails?.changes ?? 0);
+
+      // 4) Delete the template itself
+      const delTemplate = db.prepare('DELETE FROM interview_templates WHERE id = ?').run(templateId);
+      console.log('[DELETE /api/templates] deleted template', delTemplate?.changes ?? 0);
+    });
+
+    deleteInTransaction(id);
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    try {
+      const fkCheck = db.prepare('PRAGMA foreign_key_check').all();
+      console.error('[DELETE /api/templates] foreign_key_check violations:', fkCheck);
+    } catch {}
     console.error('Error deleting template:', error);
     return NextResponse.json({ error: 'Failed to delete template' }, { status: 500 });
   }
