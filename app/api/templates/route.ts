@@ -144,6 +144,37 @@ async function translateText(text: string, targetLangCode: string): Promise<stri
   }
 }
 
+// Decide whether to accept a translated string or fallback
+function pickTranslated(
+  params: {
+    result: string | undefined | null;
+    sourceText: string;
+    targetLang: string;
+    previous?: string;
+  }
+): string | undefined {
+  const { result, sourceText, targetLang, previous } = params;
+  const trimmed = result?.trim() || '';
+
+  // Always accept English result (source language is typically English)
+  if (targetLang === 'en') {
+    return trimmed || previous || sourceText;
+  }
+
+  // Heuristics: reject low-quality or failed translations
+  const looksInvalid =
+    !trimmed ||
+    trimmed.length < 2 ||
+    trimmed === sourceText;
+
+  if (looksInvalid) {
+    // Prefer keeping previous good translation. If not present, fall back to source text
+    return previous || sourceText;
+  }
+
+  return trimmed;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -207,8 +238,17 @@ export async function POST(request: NextRequest) {
 
     const translationResults = await Promise.all(translationPromises);
     const translations: Record<string, { title: string; prompt: string; overview?: string }> = {};
-    translationResults.forEach(([lang, translation]) => {
-      translations[lang] = translation;
+    translationResults.forEach(([lang, tr]) => {
+      const mergedTitle = pickTranslated({ result: tr.title, sourceText: title, targetLang: lang });
+      const mergedPrompt = pickTranslated({ result: tr.prompt, sourceText: prompt, targetLang: lang });
+      const mergedOverview = pickTranslated({ result: tr.overview, sourceText: overview, targetLang: lang });
+
+      // For POST (no previous), we still save the merged strings. This ensures all languages exist.
+      translations[lang] = {
+        title: mergedTitle || title,
+        prompt: mergedPrompt || prompt,
+        overview: mergedOverview || overview,
+      };
     });
 
     const translationsJson = JSON.stringify(translations);
@@ -239,6 +279,17 @@ export async function PUT(request: NextRequest) {
     console.log('Regenerating overview...');
     const overview = await generateOverview(prompt);
 
+    // Load existing translations to allow safe per-language fallback/merge
+    let previousTranslations: Record<string, { title: string; prompt: string; overview?: string }> = {};
+    try {
+      const row = db.prepare('SELECT translations FROM interview_templates WHERE id = ?').get(id) as { translations?: string } | undefined;
+      if (row?.translations) {
+        previousTranslations = JSON.parse(row.translations);
+      }
+    } catch (e) {
+      console.warn('Failed to load previous translations; proceeding with fresh translations.');
+    }
+
     // Generate translations for all supported languages in parallel
     console.log('Regenerating translations for all languages...');
     const translationPromises = SUPPORTED_LANGUAGES.map(async (lang) => {
@@ -252,8 +303,17 @@ export async function PUT(request: NextRequest) {
 
     const translationResults = await Promise.all(translationPromises);
     const translations: Record<string, { title: string; prompt: string; overview?: string }> = {};
-    translationResults.forEach(([lang, translation]) => {
-      translations[lang] = translation;
+    translationResults.forEach(([lang, tr]) => {
+      const prev = previousTranslations[lang] || {};
+      const mergedTitle = pickTranslated({ result: tr.title, sourceText: title, targetLang: lang, previous: prev.title });
+      const mergedPrompt = pickTranslated({ result: tr.prompt, sourceText: prompt, targetLang: lang, previous: prev.prompt });
+      const mergedOverview = pickTranslated({ result: tr.overview, sourceText: overview, targetLang: lang, previous: prev.overview });
+
+      translations[lang] = {
+        title: mergedTitle || prev.title || title,
+        prompt: mergedPrompt || prev.prompt || prompt,
+        overview: mergedOverview || prev.overview || overview,
+      };
     });
 
     const translationsJson = JSON.stringify(translations);
