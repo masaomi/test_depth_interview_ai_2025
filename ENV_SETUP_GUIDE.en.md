@@ -26,7 +26,80 @@ OPENAI_MODEL=gpt-4-turbo  # or gpt-3.5-turbo, etc.
 
 ---
 
-## Option 2: Use Local LLM (Ollama)
+## Option 2: Use Amazon Bedrock
+
+Use Amazon Bedrock to access Claude and other models.
+
+### Step 1: AWS Credentials Setup
+
+```bash
+# 1. Log in to AWS Console
+# 2. Create an IAM user
+#    - IAM > Users > Create user
+#    - Select Programmatic access
+# 3. Attach policies
+#    - AmazonBedrockFullAccess (or the custom policy below)
+```
+
+**Custom Policy Example:**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+### Step 2: Enable Bedrock Model Access
+
+```bash
+# 1. AWS Console > Bedrock > Model access
+# 2. Request access to models you want to use
+# 3. Claude models are usually approved instantly
+```
+
+### Step 3: Configure .env File
+
+```bash
+# .env
+LLM_PROVIDER=bedrock
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=AKIAXXXXXXXXXXXXXXXX
+AWS_SECRET_ACCESS_KEY=your-secret-access-key-here
+BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+```
+
+### Available Bedrock Models
+
+| Model ID | Description | Recommended For |
+|---------|-------------|-----------------|
+| `anthropic.claude-3-5-sonnet-20241022-v2:0` | Claude 3.5 Sonnet (Latest, Recommended) | High-quality responses |
+| `anthropic.claude-3-sonnet-20240229-v1:0` | Claude 3 Sonnet | Balanced performance |
+| `anthropic.claude-3-haiku-20240307-v1:0` | Claude 3 Haiku | Fast and cost-effective |
+| `amazon.titan-text-express-v1` | Amazon Titan Text Express | AWS native model |
+| `meta.llama3-70b-instruct-v1:0` | Meta Llama 3 70B | Open-source model |
+
+### Bedrock Availability Regions
+
+- `us-east-1` (N. Virginia) - Recommended
+- `us-west-2` (Oregon)
+- `ap-northeast-1` (Tokyo)
+- `ap-southeast-1` (Singapore)
+- `eu-central-1` (Frankfurt)
+
+**Note**: Model availability varies by region. Check AWS documentation for the latest information.
+
+---
+
+## Option 3: Use Local LLM (Ollama)
 
 Run LLM locally using Ollama.
 
@@ -102,7 +175,7 @@ curl http://localhost:11434/api/tags
 
 ---
 
-## Option 3: Use Local LLM (LM Studio)
+## Option 4: Use Local LLM (LM Studio)
 
 Run LLM locally using LM Studio.
 
@@ -123,7 +196,7 @@ LOCAL_LLM_MODEL=gpt-oss20B
 
 ---
 
-## Option 4: Use Other Local LLM Servers
+## Option 5: Use Other Local LLM Servers
 
 You can use vLLM, text-generation-webui, or other OpenAI-compatible API servers.
 
@@ -141,11 +214,15 @@ LOCAL_LLM_API_KEY=your-api-key-if-needed  # Only if required
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `LLM_PROVIDER` | No | - | Set to `local` to use local LLM |
+| `LLM_PROVIDER` | No | - | Set to `bedrock` for Amazon Bedrock, or `local` for local LLM |
+| `AWS_REGION` | Yes* | - | AWS region (e.g., `us-east-1`)<br/>*Required when `LLM_PROVIDER=bedrock` |
+| `AWS_ACCESS_KEY_ID` | Yes* | - | AWS access key ID<br/>*Required when `LLM_PROVIDER=bedrock` |
+| `AWS_SECRET_ACCESS_KEY` | Yes* | - | AWS secret access key<br/>*Required when `LLM_PROVIDER=bedrock` |
+| `BEDROCK_MODEL_ID` | No | `anthropic.claude-3-5-sonnet-20241022-v2:0` | Bedrock model ID to use |
 | `LOCAL_LLM_BASE_URL` | Yes* | - | Base URL of local LLM server<br/>*Required when `LLM_PROVIDER=local` |
 | `LOCAL_LLM_MODEL` | No | `gpt-oss20B` | Model name to use |
 | `LOCAL_LLM_API_KEY` | No | `dummy` | API key (if server requires it) |
-| `OPENAI_API_KEY` | Yes* | - | OpenAI API key<br/>*Required when not using local LLM |
+| `OPENAI_API_KEY` | Yes* | - | OpenAI API key<br/>*Required when not using Bedrock/local LLM |
 | `OPENAI_MODEL` | No | `gpt-4` | OpenAI model to use |
 
 ---
@@ -154,15 +231,29 @@ LOCAL_LLM_API_KEY=your-api-key-if-needed  # Only if required
 
 The system selects the LLM provider in the following order:
 
-1. **If `LLM_PROVIDER=local` is set**
+1. **If `LLM_PROVIDER=bedrock` is set**
+   → Use Amazon Bedrock (requires AWS credentials)
+
+2. **If `LLM_PROVIDER=local` is set**
    → Use local LLM (`OPENAI_API_KEY` is ignored)
 
-2. **If `LLM_PROVIDER=local` is NOT set**
+3. **If `LLM_PROVIDER` is NOT set**
    → Use OpenAI API (`OPENAI_API_KEY` is required)
 
 ---
 
 ## Switching Providers
+
+### Switch from OpenAI to Amazon Bedrock
+
+Add the following to your `.env` file:
+```bash
+LLM_PROVIDER=bedrock
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your-access-key-id
+AWS_SECRET_ACCESS_KEY=your-secret-access-key
+BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+```
 
 ### Switch from OpenAI to Local LLM
 
@@ -173,13 +264,13 @@ LOCAL_LLM_BASE_URL=http://localhost:11434/v1
 LOCAL_LLM_MODEL=gpt-oss20B
 ```
 
-### Switch from Local LLM to OpenAI
+### Switch from Bedrock/Local LLM to OpenAI
 
 Remove or comment out the following in your `.env` file:
 ```bash
+# LLM_PROVIDER=bedrock
 # LLM_PROVIDER=local
-# LOCAL_LLM_BASE_URL=http://localhost:11434/v1
-# LOCAL_LLM_MODEL=gpt-oss20B
+# (other provider-specific settings)
 ```
 
 Make sure `OPENAI_API_KEY` is set.
@@ -188,6 +279,15 @@ Make sure `OPENAI_API_KEY` is set.
 
 ## Troubleshooting
 
+### Error: "AWS credentials are required for Bedrock"
+
+- If you set `LLM_PROVIDER=bedrock`, the following environment variables are required:
+  - `AWS_REGION`
+  - `AWS_ACCESS_KEY_ID`
+  - `AWS_SECRET_ACCESS_KEY`
+- Verify your AWS credentials are correct
+- Check that your IAM user has `bedrock:InvokeModel` permission
+
 ### Error: "LOCAL_LLM_BASE_URL environment variable is not set"
 
 - If you set `LLM_PROVIDER=local`, `LOCAL_LLM_BASE_URL` is also required
@@ -195,8 +295,21 @@ Make sure `OPENAI_API_KEY` is set.
 
 ### Error: "OPENAI_API_KEY environment variable is not set"
 
+- If you want to use Amazon Bedrock, set `LLM_PROVIDER=bedrock`
 - If you want to use local LLM, set `LLM_PROVIDER=local`
 - If you want to use OpenAI, set a valid `OPENAI_API_KEY`
+
+### Cannot Connect to Bedrock
+
+- Verify AWS credentials:
+  ```bash
+  aws bedrock list-foundation-models --region us-east-1
+  # If you have AWS CLI configured
+  ```
+- Check that your IAM policy includes `bedrock:InvokeModel` permission
+- Verify the model is enabled in Bedrock Model Access settings
+- Confirm the region is correct (Bedrock is not available in all regions)
+- Verify the model ID is exact (case-sensitive)
 
 ### Cannot Connect to Local LLM
 

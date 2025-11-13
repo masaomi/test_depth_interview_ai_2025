@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import db from '@/lib/db';
 import { Message, InterviewTemplate, AIResponse, QuestionMetadata, ResponseMetadata } from '@/lib/types';
 
@@ -112,6 +113,181 @@ ${raw}`;
   }
 }
 
+// Bedrock client and helper functions
+function getBedrockClient(): BedrockRuntimeClient | null {
+  const provider = process.env.LLM_PROVIDER;
+  
+  if (provider !== 'bedrock') {
+    return null;
+  }
+  
+  const region = process.env.AWS_REGION;
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+  
+  if (!region || !accessKeyId || !secretAccessKey) {
+    throw new Error('AWS credentials (AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) are required for Bedrock');
+  }
+  
+  console.log(`Using Amazon Bedrock in region ${region}`);
+  
+  return new BedrockRuntimeClient({
+    region,
+    credentials: {
+      accessKeyId,
+      secretAccessKey,
+    },
+  });
+}
+
+async function callBedrockAPI(
+  client: BedrockRuntimeClient,
+  modelId: string,
+  messages: Message[],
+  languageName: string
+): Promise<string> {
+  try {
+    // Convert messages to Bedrock format
+    // For Claude models, we need to separate system messages from conversation
+    const systemMessages = messages.filter(m => m.role === 'system');
+    const conversationMessages = messages.filter(m => m.role !== 'system');
+    
+    const systemPrompt = systemMessages.map(m => m.content).join('\n\n');
+    
+    // Build messages in Anthropic Claude format (Bedrock messages API)
+    const claudeMessages = conversationMessages.map(msg => ({
+      role: msg.role === 'assistant' ? 'assistant' : 'user',
+      content: [
+        {
+          type: 'text',
+          text: msg.content,
+        },
+      ],
+    }));
+    
+    // Prepare request body based on model type
+    let requestBody: any;
+    
+    if (modelId.startsWith('anthropic.claude')) {
+      // Claude models
+      requestBody = {
+        anthropic_version: 'bedrock-2023-05-31',
+        max_tokens: 800,
+        temperature: 0.7,
+        messages: claudeMessages,
+        ...(systemPrompt ? { system: systemPrompt } : {}),
+      };
+    } else if (modelId.startsWith('amazon.titan')) {
+      // Amazon Titan models
+      const fullPrompt = [
+        systemPrompt,
+        ...conversationMessages.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+      ].filter(Boolean).join('\n\n');
+      
+      requestBody = {
+        inputText: fullPrompt,
+        textGenerationConfig: {
+          maxTokenCount: 800,
+          temperature: 0.7,
+        },
+      };
+    } else if (modelId.startsWith('meta.llama')) {
+      // Meta Llama models
+      const fullPrompt = [
+        systemPrompt,
+        ...conversationMessages.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+      ].filter(Boolean).join('\n\n');
+      
+      requestBody = {
+        prompt: fullPrompt,
+        max_gen_len: 800,
+        temperature: 0.7,
+      };
+    } else {
+      throw new Error(`Unsupported Bedrock model: ${modelId}`);
+    }
+    
+    const command = new InvokeModelCommand({
+      modelId,
+      contentType: 'application/json',
+      accept: 'application/json',
+      body: JSON.stringify(requestBody),
+    });
+    
+    const response = await client.send(command);
+    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+    
+    // Extract content based on model type
+    let content = '';
+    
+    if (modelId.startsWith('anthropic.claude')) {
+      // Claude response format
+      if (responseBody.content && Array.isArray(responseBody.content)) {
+        content = responseBody.content
+          .filter((item: any) => item.type === 'text')
+          .map((item: any) => item.text)
+          .join('');
+      } else if (responseBody.completion) {
+        content = responseBody.completion;
+      }
+    } else if (modelId.startsWith('amazon.titan')) {
+      // Titan response format
+      if (responseBody.results && Array.isArray(responseBody.results)) {
+        content = responseBody.results[0]?.outputText || '';
+      }
+    } else if (modelId.startsWith('meta.llama')) {
+      // Llama response format
+      content = responseBody.generation || '';
+    }
+    
+    return content.trim();
+  } catch (error) {
+    console.error('Bedrock API error:', error);
+    throw error;
+  }
+}
+
+async function repairResponseToJsonBedrock(
+  client: BedrockRuntimeClient,
+  modelId: string,
+  raw: string
+): Promise<AIResponse | null> {
+  try {
+    const prompt = `Convert the following assistant output into STRICT VALID JSON matching this exact schema keys and types.
+Schema:
+{
+  "question": string,
+  "type": "text" | "single_choice" | "multi_choice" | "scale",
+  "options"?: string[],
+  "scaleMin"?: number,
+  "scaleMax"?: number,
+  "scaleMinLabel"?: string,
+  "scaleMaxLabel"?: string
+}
+
+Rules:
+- Output ONLY the JSON object, no code fences, no commentary.
+- Use double quotes for all keys and strings.
+- No trailing commas.
+
+CONTENT:
+${raw}`;
+
+    const repaired = await callBedrockAPI(
+      client,
+      modelId,
+      [{ role: 'user', content: prompt }],
+      'English'
+    );
+    
+    const json = extractFirstJsonObject(repaired) || repaired;
+    return JSON.parse(json) as AIResponse;
+  } catch (e) {
+    console.warn('JSON repair attempt failed:', e);
+    return null;
+  }
+}
+
 function getOpenAIClient() {
   const provider = process.env.LLM_PROVIDER;
   
@@ -144,7 +320,9 @@ function getOpenAIClient() {
 function getModelName() {
   const provider = process.env.LLM_PROVIDER;
   
-  if (provider === 'local') {
+  if (provider === 'bedrock') {
+    return process.env.BEDROCK_MODEL_ID || 'anthropic.claude-3-5-sonnet-20241022-v2:0';
+  } else if (provider === 'local') {
     return process.env.LOCAL_LLM_MODEL || 'gpt-oss20B';
   } else {
     return process.env.OPENAI_MODEL || 'gpt-4';
@@ -211,39 +389,71 @@ export async function POST(request: NextRequest) {
     ];
 
     // Call LLM API
-    const openai = getOpenAIClient();
+    const provider = process.env.LLM_PROVIDER;
     const modelName = getModelName();
+    let rawResponse = '';
     
     console.log(`Calling LLM model: ${modelName} in language: ${languageName}`);
     
-    const isGpt5 = modelName.startsWith('gpt-5');
-    const completion = await openai.chat.completions.create({
-      model: modelName,
-      messages: messages as any,
-      ...(isGpt5 ? {} : { temperature: 0.7 }),
-      ...(isGpt5 ? { max_completion_tokens: 800 } : { max_tokens: 800 }),
-    });
-    let rawResponse = completion.choices[0]?.message?.content?.trim() || '';
-
-    // GPT-5 sometimes returns empty content; do a simplified retry without history
-    if (!rawResponse && isGpt5) {
+    if (provider === 'bedrock') {
+      // Use Amazon Bedrock
+      const bedrockClient = getBedrockClient();
+      if (!bedrockClient) {
+        throw new Error('Failed to initialize Bedrock client');
+      }
+      
       try {
-        console.warn('GPT-5 returned empty content, retrying with simplified prompt');
-        const simplified = await openai.chat.completions.create({
-          model: modelName,
-          messages: [
+        rawResponse = await callBedrockAPI(bedrockClient, modelName, messages, languageName);
+        
+        // Bedrock retry with simplified prompt if empty response
+        if (!rawResponse) {
+          console.warn('Bedrock returned empty content, retrying with simplified prompt');
+          const simplifiedMessages: Message[] = [
             {
               role: 'system',
               content:
                 'You are a helpful interviewer. Reply in the user\'s language. Keep it concise and ask one clear follow-up question. Return a JSON object with format: {"question": "your question", "type": "text"}',
             },
             { role: 'user', content: message },
-          ] as any,
-          ...(isGpt5 ? { max_completion_tokens: 300 } : { max_tokens: 300, temperature: 0.7 }),
-        });
-        rawResponse = simplified.choices[0]?.message?.content?.trim() || '';
-      } catch (e) {
-        console.warn('GPT-5 simplified retry failed');
+          ];
+          rawResponse = await callBedrockAPI(bedrockClient, modelName, simplifiedMessages, languageName);
+        }
+      } catch (error) {
+        console.error('Bedrock API call failed:', error);
+        throw error;
+      }
+    } else {
+      // Use OpenAI or Local LLM
+      const openai = getOpenAIClient();
+      const isGpt5 = modelName.startsWith('gpt-5');
+      const completion = await openai.chat.completions.create({
+        model: modelName,
+        messages: messages as any,
+        ...(isGpt5 ? {} : { temperature: 0.7 }),
+        ...(isGpt5 ? { max_completion_tokens: 800 } : { max_tokens: 800 }),
+      });
+      rawResponse = completion.choices[0]?.message?.content?.trim() || '';
+
+      // GPT-5 sometimes returns empty content; do a simplified retry without history
+      if (!rawResponse && isGpt5) {
+        try {
+          console.warn('GPT-5 returned empty content, retrying with simplified prompt');
+          const simplified = await openai.chat.completions.create({
+            model: modelName,
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You are a helpful interviewer. Reply in the user\'s language. Keep it concise and ask one clear follow-up question. Return a JSON object with format: {"question": "your question", "type": "text"}',
+              },
+              { role: 'user', content: message },
+            ] as any,
+            ...(isGpt5 ? { max_completion_tokens: 300 } : { max_tokens: 300, temperature: 0.7 }),
+          });
+          rawResponse = simplified.choices[0]?.message?.content?.trim() || '';
+        } catch (e) {
+          console.warn('GPT-5 simplified retry failed');
+        }
       }
     }
 
@@ -273,9 +483,15 @@ export async function POST(request: NextRequest) {
       // Attempt a repair call to coerce into strict JSON
       let repaired: AIResponse | null = null;
       try {
-        const openaiForRepair = getOpenAIClient();
-        const modelForRepair = getModelName();
-        repaired = await repairResponseToJson(openaiForRepair, modelForRepair, rawResponse);
+        if (provider === 'bedrock') {
+          const bedrockClient = getBedrockClient();
+          if (bedrockClient) {
+            repaired = await repairResponseToJsonBedrock(bedrockClient, modelName, rawResponse);
+          }
+        } else {
+          const openaiForRepair = getOpenAIClient();
+          repaired = await repairResponseToJson(openaiForRepair, modelName, rawResponse);
+        }
       } catch {}
 
       if (repaired && repaired.question && repaired.type) {

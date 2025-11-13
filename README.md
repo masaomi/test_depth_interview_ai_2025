@@ -8,13 +8,13 @@ An AI-powered interview system that allows administrators to create interview te
 
 ## Features
 
-- 🤖 AI-powered interviews using OpenAI GPT-4 or Local LLM (Ollama, LM Studio)
+- 🤖 AI-powered interviews using OpenAI GPT-4, Amazon Bedrock, or Local LLM (Ollama, LM Studio)
 - ⏱️ Configurable time limits with extension options
 - 🌍 Multi-language support (English, Japanese, Spanish, French, German, Chinese)
 - 👨‍💼 Admin panel for creating and managing interview templates
 - 💾 Automatic conversation log storage
 - 📱 Responsive design with dark mode support
-- 🔄 Flexible LLM provider switching (OpenAI API or Local LLM)
+- 🔄 Flexible LLM provider switching (OpenAI API, Amazon Bedrock, or Local LLM)
 
 ## Setup
 
@@ -43,6 +43,9 @@ npm install -g pnpm
 # For OpenAI API
 cp env.openai.example .env
 
+# For Amazon Bedrock
+cp env.bedrock.example .env
+
 # For Ollama
 cp env.ollama.example .env
 
@@ -60,9 +63,34 @@ OPENAI_API_KEY=your_openai_api_key_here
 # OPENAI_MODEL=gpt-4  # Optional, defaults to gpt-4
 ```
 
-### Option B: Using Local LLM (Ollama, LM Studio, etc.)
+### Option B: Using Amazon Bedrock
 
-**Priority: `LLM_PROVIDER=local` takes precedence over `OPENAI_API_KEY`**
+```bash
+# .env
+LLM_PROVIDER=bedrock
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your_aws_access_key_id_here
+AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key_here
+BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+```
+
+**Setting up Amazon Bedrock:**
+1. Create an IAM user with Bedrock access permissions in AWS Console
+2. Attach policy: `AmazonBedrockFullAccess` (or custom policy with `bedrock:InvokeModel`)
+3. Generate access key and secret key
+4. Enable model access in Bedrock console (AWS Console > Bedrock > Model access)
+5. Configure `.env` with your credentials and preferred model
+
+**Supported Bedrock Models:**
+- Claude 3.5 Sonnet (Recommended): `anthropic.claude-3-5-sonnet-20241022-v2:0`
+- Claude 3 Sonnet: `anthropic.claude-3-sonnet-20240229-v1:0`
+- Claude 3 Haiku: `anthropic.claude-3-haiku-20240307-v1:0`
+- Amazon Titan: `amazon.titan-text-express-v1`
+- Meta Llama: `meta.llama3-70b-instruct-v1:0`
+
+### Option C: Using Local LLM (Ollama, LM Studio, etc.)
+
+**Priority: `LLM_PROVIDER` setting determines which provider to use**
 
 ```bash
 # .env
@@ -359,29 +387,45 @@ sqlite3 interviews.db "SELECT COUNT(*) FROM interview_sessions;"
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `LLM_PROVIDER` | No | - | Set to `local` to use local LLM server |
+| `LLM_PROVIDER` | No | - | Set to `bedrock` for Amazon Bedrock, or `local` for local LLM server |
+| `AWS_REGION` | Yes (if `LLM_PROVIDER=bedrock`) | - | AWS region where Bedrock is available (e.g., `us-east-1`) |
+| `AWS_ACCESS_KEY_ID` | Yes (if `LLM_PROVIDER=bedrock`) | - | AWS access key ID for Bedrock authentication |
+| `AWS_SECRET_ACCESS_KEY` | Yes (if `LLM_PROVIDER=bedrock`) | - | AWS secret access key for Bedrock authentication |
+| `BEDROCK_MODEL_ID` | No | `anthropic.claude-3-5-sonnet-20241022-v2:0` | Bedrock model ID to use |
 | `LOCAL_LLM_BASE_URL` | Yes (if `LLM_PROVIDER=local`) | - | Base URL of your local LLM server (e.g., `http://localhost:11434/v1`) |
 | `LOCAL_LLM_MODEL` | No | `gpt-oss20B` | Model name for local LLM |
 | `LOCAL_LLM_API_KEY` | No | `dummy` | API key for local LLM server (if required) |
-| `OPENAI_API_KEY` | Yes (if not using local) | - | Your OpenAI API key |
+| `OPENAI_API_KEY` | Yes (if not using Bedrock/local) | - | Your OpenAI API key |
 | `OPENAI_MODEL` | No | `gpt-4` | OpenAI model name |
 | `ADMIN_PASSWORD` | No | - | Password for Admin Panel access. If not set, Admin Panel is disabled |
 
 ### Priority
 
 The system uses the following priority:
-1. If `LLM_PROVIDER=local`, use local LLM (regardless of `OPENAI_API_KEY`)
-2. Otherwise, use OpenAI API (requires `OPENAI_API_KEY`)
+1. If `LLM_PROVIDER=bedrock`, use Amazon Bedrock (requires AWS credentials)
+2. If `LLM_PROVIDER=local`, use local LLM (requires local server)
+3. Otherwise, use OpenAI API (requires `OPENAI_API_KEY`)
 
 ### Switching Between Providers
 
-To switch between OpenAI and local LLM, simply update your `.env` file:
+To switch between providers, simply update your `.env` file:
 
 **Use OpenAI:**
 ```bash
 # Remove or comment out LLM_PROVIDER
+# LLM_PROVIDER=bedrock
 # LLM_PROVIDER=local
 OPENAI_API_KEY=your_openai_api_key_here
+```
+
+**Use Amazon Bedrock:**
+```bash
+LLM_PROVIDER=bedrock
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your_aws_access_key_id_here
+AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key_here
+BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+# OPENAI_API_KEY can remain (will be ignored)
 ```
 
 **Use Local LLM:**
