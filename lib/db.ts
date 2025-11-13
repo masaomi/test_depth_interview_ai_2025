@@ -103,4 +103,7 @@ ensureColumn('conversation_logs', 'metadata', `ALTER TABLE conversation_logs ADD
 // Add overview column to interview_templates if it doesn't exist (migration)
 ensureColumn('interview_templates', 'overview', `ALTER TABLE interview_templates ADD COLUMN overview TEXT`);
 
+// Add summary column to interview_sessions if it doesn't exist (migration)
+ensureColumn('interview_sessions', 'summary', `ALTER TABLE interview_sessions ADD COLUMN summary TEXT`);
+
 export default db;

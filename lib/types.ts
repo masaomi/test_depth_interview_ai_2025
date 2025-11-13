@@ -21,6 +21,7 @@ export interface InterviewSession {
   started_at: string;
   ended_at?: string;
   status: 'active' | 'completed' | 'extended';
+  summary?: string;
 }
 
 export type QuestionType = 'text' | 'single_choice' | 'multi_choice' | 'scale';

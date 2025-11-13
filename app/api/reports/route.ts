@@ -1,7 +1,107 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import db from '@/lib/db';
 import { randomUUID } from 'crypto';
+
+// Bedrock client setup
+function getBedrockClient(): BedrockRuntimeClient | null {
+  const provider = process.env.LLM_PROVIDER;
+  
+  if (provider !== 'bedrock') {
+    return null;
+  }
+  
+  const region = process.env.AWS_REGION;
+  const bearerToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+  
+  if (!region) {
+    throw new Error('AWS_REGION is required for Bedrock');
+  }
+  
+  if (bearerToken) {
+    return new BedrockRuntimeClient({
+      region,
+      credentials: {
+        accessKeyId: 'BEARER_TOKEN',
+        secretAccessKey: '',
+      },
+    });
+  } else if (accessKeyId && secretAccessKey) {
+    return new BedrockRuntimeClient({
+      region,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+    });
+  } else {
+    throw new Error('Either AWS_BEARER_TOKEN_BEDROCK or (AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY) are required for Bedrock');
+  }
+}
+
+async function callBedrockForAnalysis(modelId: string, userPrompt: string, maxTokens: number = 2000): Promise<string> {
+  const bedrockClient = getBedrockClient();
+  if (!bedrockClient) {
+    throw new Error('Bedrock client not initialized');
+  }
+  
+  const bearerToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
+  if (bearerToken) {
+    bedrockClient.middlewareStack.add(
+      (next: any) => async (args: any) => {
+        if (args.request && args.request.headers) {
+          args.request.headers['Authorization'] = `Bearer ${bearerToken}`;
+        }
+        return next(args);
+      },
+      {
+        step: 'build',
+        name: 'addBearerToken',
+        priority: 'high',
+      }
+    );
+  }
+  
+  const isClaudeModel = modelId.startsWith('anthropic.claude') || modelId.includes('.anthropic.claude');
+  
+  if (!isClaudeModel) {
+    throw new Error('Only Claude models are currently supported for Bedrock in reports API');
+  }
+  
+  const requestBody = {
+    anthropic_version: 'bedrock-2023-05-31',
+    max_tokens: maxTokens,
+    temperature: 0.3,
+    messages: [
+      {
+        role: 'user',
+        content: [{ type: 'text', text: userPrompt }],
+      },
+    ],
+  };
+  
+  const command = new InvokeModelCommand({
+    modelId,
+    contentType: 'application/json',
+    accept: 'application/json',
+    body: JSON.stringify(requestBody),
+  });
+  
+  const response = await bedrockClient.send(command);
+  const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+  
+  if (responseBody.content && Array.isArray(responseBody.content)) {
+    return responseBody.content
+      .filter((item: any) => item.type === 'text')
+      .map((item: any) => item.text)
+      .join('');
+  }
+  
+  return '';
+}
 
 function getOpenAIClient() {
   const provider = process.env.LLM_PROVIDER;
@@ -30,7 +130,12 @@ function getOpenAIClient() {
 function getModelName() {
   const provider = process.env.LLM_PROVIDER;
   
-  if (provider === 'local') {
+  if (provider === 'bedrock') {
+    const defaultModel = process.env.AWS_BEARER_TOKEN_BEDROCK 
+      ? 'eu.anthropic.claude-sonnet-4-5-20250929-v1:0'
+      : 'anthropic.claude-3-5-sonnet-20241022-v2:0';
+    return process.env.BEDROCK_MODEL_ID || defaultModel;
+  } else if (provider === 'local') {
     return process.env.LOCAL_LLM_MODEL || 'gpt-oss20B';
   } else {
     return process.env.OPENAI_MODEL || 'gpt-4';
@@ -65,7 +170,7 @@ async function analyzeInterviewWithLLM(
   templateTitle: string,
   conversations: Array<{ session_id: string; messages: Array<{ role: string; content: string }> }>
 ): Promise<AnalysisResult> {
-  const openai = getOpenAIClient();
+  const provider = process.env.LLM_PROVIDER;
   const modelName = getModelName();
 
   // Prepare conversation data for analysis
@@ -100,29 +205,43 @@ Respond ONLY with valid JSON in this exact format:
 }`;
 
   try {
-    const isGpt5 = modelName.startsWith('gpt-5');
-    const completion = await openai.chat.completions.create({
-      model: modelName,
-      messages: [
-        { role: 'user', content: analysisPrompt }
-      ],
-      ...(isGpt5 ? {} : { temperature: 0.3 }),
-      ...(isGpt5 ? { max_completion_tokens: 2000 } : { max_tokens: 2000 }),
-    });
+    let responseText = '';
+    
+    if (provider === 'bedrock') {
+      responseText = await callBedrockForAnalysis(modelName, analysisPrompt, 2000);
+    } else {
+      const openai = getOpenAIClient();
+      const isGpt5 = modelName.startsWith('gpt-5');
+      const completion = await openai.chat.completions.create({
+        model: modelName,
+        messages: [
+          { role: 'user', content: analysisPrompt }
+        ],
+        ...(isGpt5 ? {} : { temperature: 0.3 }),
+        ...(isGpt5 ? { max_completion_tokens: 2000 } : { max_tokens: 2000 }),
+      });
+      responseText = completion.choices[0]?.message?.content?.trim() || '';
+    }
 
-    const responseText = completion.choices[0]?.message?.content?.trim() || '';
     let analysis = safeParseJson<AnalysisResult>(responseText);
 
     if (!analysis) {
       // Repair attempt: ask model to fix to strict JSON
       const repairPrompt = `Convert the following content into STRICT, VALID JSON matching this schema keys: {executive_summary: string, key_findings: string[], segment_analysis: string, recommended_actions: string[]}. Output JSON only with no code fences, no commentary.\n\nCONTENT:\n${responseText}`;
-      const repaired = await openai.chat.completions.create({
-        model: modelName,
-        messages: [{ role: 'user', content: repairPrompt }] as any,
-        ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 1000 } : { max_tokens: 1000, temperature: 0 }),
-      });
-      const repairedText = repaired.choices[0]?.message?.content?.trim() || '';
-      analysis = safeParseJson<AnalysisResult>(repairedText);
+      
+      if (provider === 'bedrock') {
+        const repairedText = await callBedrockForAnalysis(modelName, repairPrompt, 1000);
+        analysis = safeParseJson<AnalysisResult>(repairedText);
+      } else {
+        const openai = getOpenAIClient();
+        const repaired = await openai.chat.completions.create({
+          model: modelName,
+          messages: [{ role: 'user', content: repairPrompt }] as any,
+          ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 1000 } : { max_tokens: 1000, temperature: 0 }),
+        });
+        const repairedText = repaired.choices[0]?.message?.content?.trim() || '';
+        analysis = safeParseJson<AnalysisResult>(repairedText);
+      }
     }
 
     if (!analysis) {
@@ -151,7 +270,7 @@ async function translateAnalysisToLanguage(
   analysis: AnalysisResult,
   targetLanguage: string
 ): Promise<AnalysisResult> {
-  const openai = getOpenAIClient();
+  const provider = process.env.LLM_PROVIDER;
   const modelName = getModelName();
 
   const languageNames: Record<string, string> = {
@@ -182,29 +301,43 @@ Respond ONLY with the translated JSON in the same format:
 }`;
 
   try {
-    const isGpt5 = modelName.startsWith('gpt-5');
-    const completion = await openai.chat.completions.create({
-      model: modelName,
-      messages: [
-        { role: 'user', content: translationPrompt }
-      ],
-      ...(isGpt5 ? {} : { temperature: 0.3 }),
-      ...(isGpt5 ? { max_completion_tokens: 2500 } : { max_tokens: 2500 }),
-    });
+    let responseText = '';
+    
+    if (provider === 'bedrock') {
+      responseText = await callBedrockForAnalysis(modelName, translationPrompt, 2500);
+    } else {
+      const openai = getOpenAIClient();
+      const isGpt5 = modelName.startsWith('gpt-5');
+      const completion = await openai.chat.completions.create({
+        model: modelName,
+        messages: [
+          { role: 'user', content: translationPrompt }
+        ],
+        ...(isGpt5 ? {} : { temperature: 0.3 }),
+        ...(isGpt5 ? { max_completion_tokens: 2500 } : { max_tokens: 2500 }),
+      });
+      responseText = completion.choices[0]?.message?.content?.trim() || '';
+    }
 
-    const responseText = completion.choices[0]?.message?.content?.trim() || '';
     let translated = safeParseJson<AnalysisResult>(responseText);
 
     if (!translated) {
       // Repair attempt
       const repairPrompt = `Fix the following into STRICT VALID JSON (no code fences, no comments) preserving meaning. Keys must be: executive_summary (string), key_findings (string array), segment_analysis (string), recommended_actions (string array).\n\nCONTENT:\n${responseText}`;
-      const repaired = await openai.chat.completions.create({
-        model: modelName,
-        messages: [{ role: 'user', content: repairPrompt }] as any,
-        ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 1000 } : { max_tokens: 1000, temperature: 0 }),
-      });
-      const repairedText = repaired.choices[0]?.message?.content?.trim() || '';
-      translated = safeParseJson<AnalysisResult>(repairedText);
+      
+      if (provider === 'bedrock') {
+        const repairedText = await callBedrockForAnalysis(modelName, repairPrompt, 1000);
+        translated = safeParseJson<AnalysisResult>(repairedText);
+      } else {
+        const openai = getOpenAIClient();
+        const repaired = await openai.chat.completions.create({
+          model: modelName,
+          messages: [{ role: 'user', content: repairPrompt }] as any,
+          ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 1000 } : { max_tokens: 1000, temperature: 0 }),
+        });
+        const repairedText = repaired.choices[0]?.message?.content?.trim() || '';
+        translated = safeParseJson<AnalysisResult>(repairedText);
+      }
     }
 
     if (!translated) {

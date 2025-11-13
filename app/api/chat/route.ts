@@ -122,22 +122,39 @@ function getBedrockClient(): BedrockRuntimeClient | null {
   }
   
   const region = process.env.AWS_REGION;
+  const bearerToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
   
-  if (!region || !accessKeyId || !secretAccessKey) {
-    throw new Error('AWS credentials (AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) are required for Bedrock');
+  if (!region) {
+    throw new Error('AWS_REGION is required for Bedrock');
   }
   
   console.log(`Using Amazon Bedrock in region ${region}`);
   
-  return new BedrockRuntimeClient({
-    region,
-    credentials: {
-      accessKeyId,
-      secretAccessKey,
-    },
-  });
+  // Check if using Bearer token authentication or Access Key authentication
+  if (bearerToken) {
+    console.log('Using Bearer token authentication for Bedrock');
+    // Bearer token authentication - credentials are not used for signing
+    return new BedrockRuntimeClient({
+      region,
+      credentials: {
+        accessKeyId: 'BEARER_TOKEN',
+        secretAccessKey: '',
+      },
+    });
+  } else if (accessKeyId && secretAccessKey) {
+    console.log('Using Access Key authentication for Bedrock');
+    return new BedrockRuntimeClient({
+      region,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+    });
+  } else {
+    throw new Error('Either AWS_BEARER_TOKEN_BEDROCK or (AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY) are required for Bedrock');
+  }
 }
 
 async function callBedrockAPI(
@@ -147,6 +164,25 @@ async function callBedrockAPI(
   languageName: string
 ): Promise<string> {
   try {
+    // Add bearer token to request headers if configured
+    const bearerToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
+    if (bearerToken) {
+      // Add middleware to inject Bearer token into request headers
+      client.middlewareStack.add(
+        (next: any) => async (args: any) => {
+          if (args.request && args.request.headers) {
+            args.request.headers['Authorization'] = `Bearer ${bearerToken}`;
+          }
+          return next(args);
+        },
+        {
+          step: 'build',
+          name: 'addBearerToken',
+          priority: 'high',
+        }
+      );
+    }
+    
     // Convert messages to Bedrock format
     // For Claude models, we need to separate system messages from conversation
     const systemMessages = messages.filter(m => m.role === 'system');
@@ -168,7 +204,11 @@ async function callBedrockAPI(
     // Prepare request body based on model type
     let requestBody: any;
     
-    if (modelId.startsWith('anthropic.claude')) {
+    // Handle inference profile model IDs (e.g., eu.anthropic.claude-sonnet-4-5-*)
+    const isInferenceProfile = modelId.includes('.anthropic.claude');
+    const isClaudeModel = modelId.startsWith('anthropic.claude') || isInferenceProfile;
+    
+    if (isClaudeModel) {
       // Claude models
       requestBody = {
         anthropic_version: 'bedrock-2023-05-31',
@@ -220,7 +260,10 @@ async function callBedrockAPI(
     // Extract content based on model type
     let content = '';
     
-    if (modelId.startsWith('anthropic.claude')) {
+    // Check if it's a Claude model (including inference profiles)
+    const isClaudeResponse = modelId.startsWith('anthropic.claude') || modelId.includes('.anthropic.claude');
+    
+    if (isClaudeResponse) {
       // Claude response format
       if (responseBody.content && Array.isArray(responseBody.content)) {
         content = responseBody.content
@@ -321,7 +364,12 @@ function getModelName() {
   const provider = process.env.LLM_PROVIDER;
   
   if (provider === 'bedrock') {
-    return process.env.BEDROCK_MODEL_ID || 'anthropic.claude-3-5-sonnet-20241022-v2:0';
+    // Default to Sonnet 4.5 inference profile for EU region
+    // If using Bearer token, you likely want to use inference profiles
+    const defaultModel = process.env.AWS_BEARER_TOKEN_BEDROCK 
+      ? 'eu.anthropic.claude-sonnet-4-5-20250929-v1:0'
+      : 'anthropic.claude-3-5-sonnet-20241022-v2:0';
+    return process.env.BEDROCK_MODEL_ID || defaultModel;
   } else if (provider === 'local') {
     return process.env.LOCAL_LLM_MODEL || 'gpt-oss20B';
   } else {

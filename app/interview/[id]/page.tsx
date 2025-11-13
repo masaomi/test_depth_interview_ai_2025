@@ -26,6 +26,8 @@ export default function InterviewPage() {
   const [showConfirmEnd, setShowConfirmEnd] = useState(false);
   const [interviewStarted, setInterviewStarted] = useState(false);
   const [templateData, setTemplateData] = useState<InterviewTemplate | null>(null);
+  const [summary, setSummary] = useState<string>('');
+  const [loadingSummary, setLoadingSummary] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -493,6 +495,7 @@ export default function InterviewPage() {
   const handleFinish = async () => {
     setShowExtendDialog(false);
     setShowThankYou(true);
+    setLoadingSummary(true);
 
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -505,8 +508,37 @@ export default function InterviewPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: sessionId, status: 'completed' }),
       });
+      
+      // Generate summary
+      const summaryRes = await fetch(`/api/sessions/${sessionId}/summary`, {
+        method: 'POST',
+      });
+      const summaryData = await summaryRes.json();
+      
+      if (summaryData.summary) {
+        setSummary(summaryData.summary);
+      }
     } catch (error) {
       console.error('Error completing session:', error);
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
+  
+  const handleDownloadMarkdown = async () => {
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/export`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `interview_${sessionId}_${Date.now()}.md`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading markdown:', error);
     }
   };
 
@@ -817,22 +849,115 @@ export default function InterviewPage() {
         </div>
       )}
 
-      {/* Thank You Dialog */}
+      {/* Interview Summary Modal */}
       {showThankYou && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md w-full mx-4">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-              Thank you for participating!
-            </h2>
-            <p className="text-gray-600 dark:text-gray-300 mb-6">
-              Your responses have been saved.
-            </p>
-            <button
-              onClick={() => window.location.href = '/'}
-              className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-            >
-              Close
-            </button>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-4xl w-full my-8">
+            {/* Header */}
+            <div className="bg-indigo-600 dark:bg-indigo-700 px-8 py-6 rounded-t-lg">
+              <h2 className="text-3xl font-bold text-white">
+                {language === 'ja' ? 'インタビュー完了' : 'Interview Completed'}
+              </h2>
+              <p className="text-indigo-100 mt-2">
+                {language === 'ja' ? 'ご参加ありがとうございました！' : 'Thank you for participating!'}
+              </p>
+            </div>
+
+            <div className="p-8 max-h-[70vh] overflow-y-auto">
+              {/* Summary Section */}
+              <div className="mb-8">
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 flex items-center">
+                  <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  {language === 'ja' ? 'インタビューサマリー' : 'Interview Summary'}
+                </h3>
+                
+                {loadingSummary ? (
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                      <p className="text-gray-600 dark:text-gray-300">
+                        {language === 'ja' ? 'サマリーを生成中...' : 'Generating summary...'}
+                      </p>
+                    </div>
+                  </div>
+                ) : summary ? (
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-600 rounded-lg p-6 border border-indigo-200 dark:border-indigo-800">
+                    <div className="prose dark:prose-invert max-w-none">
+                      <div className="whitespace-pre-wrap text-gray-800 dark:text-gray-100 leading-relaxed">
+                        {summary}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-6 border border-yellow-200 dark:border-yellow-800">
+                    <p className="text-yellow-800 dark:text-yellow-200">
+                      {language === 'ja' ? 'サマリーの生成に失敗しました。' : 'Failed to generate summary.'}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Conversation Log Section */}
+              <div className="mb-8">
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 flex items-center">
+                  <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  </svg>
+                  {language === 'ja' ? '会話ログ' : 'Conversation Log'}
+                  <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+                    ({messages.length} {language === 'ja' ? 'メッセージ' : 'messages'})
+                  </span>
+                </h3>
+                
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 max-h-[400px] overflow-y-auto space-y-4">
+                  {messages.map((message, index) => (
+                    <div
+                      key={index}
+                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[80%] rounded-lg px-4 py-3 ${
+                          message.role === 'user'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-500'
+                        }`}
+                      >
+                        <div className="flex items-center mb-1">
+                          <span className="text-xs font-semibold opacity-75">
+                            {message.role === 'user' ? (language === 'ja' ? '参加者' : 'You') : 'AI'}
+                          </span>
+                        </div>
+                        <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer with Actions */}
+            <div className="bg-gray-100 dark:bg-gray-800 px-8 py-6 rounded-b-lg border-t border-gray-200 dark:border-gray-600">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button
+                  onClick={handleDownloadMarkdown}
+                  disabled={loadingSummary}
+                  className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  {language === 'ja' ? 'Markdownをダウンロード' : 'Download Markdown'}
+                </button>
+                <button
+                  onClick={() => window.location.href = '/'}
+                  className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                >
+                  {language === 'ja' ? 'ホームに戻る' : 'Back to Home'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -3,6 +3,107 @@ import db from '@/lib/db';
 import { InterviewTemplate } from '@/lib/types';
 import { randomUUID } from 'crypto';
 import OpenAI from 'openai';
+import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
+
+// Bedrock client setup
+function getBedrockClient(): BedrockRuntimeClient | null {
+  const provider = process.env.LLM_PROVIDER;
+  
+  if (provider !== 'bedrock') {
+    return null;
+  }
+  
+  const region = process.env.AWS_REGION;
+  const bearerToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+  
+  if (!region) {
+    throw new Error('AWS_REGION is required for Bedrock');
+  }
+  
+  if (bearerToken) {
+    return new BedrockRuntimeClient({
+      region,
+      credentials: {
+        accessKeyId: 'BEARER_TOKEN',
+        secretAccessKey: '',
+      },
+    });
+  } else if (accessKeyId && secretAccessKey) {
+    return new BedrockRuntimeClient({
+      region,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+    });
+  } else {
+    throw new Error('Either AWS_BEARER_TOKEN_BEDROCK or (AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY) are required for Bedrock');
+  }
+}
+
+async function callBedrockSimple(modelId: string, systemPrompt: string, userPrompt: string): Promise<string> {
+  const bedrockClient = getBedrockClient();
+  if (!bedrockClient) {
+    throw new Error('Bedrock client not initialized');
+  }
+  
+  const bearerToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
+  if (bearerToken) {
+    bedrockClient.middlewareStack.add(
+      (next: any) => async (args: any) => {
+        if (args.request && args.request.headers) {
+          args.request.headers['Authorization'] = `Bearer ${bearerToken}`;
+        }
+        return next(args);
+      },
+      {
+        step: 'build',
+        name: 'addBearerToken',
+        priority: 'high',
+      }
+    );
+  }
+  
+  const isClaudeModel = modelId.startsWith('anthropic.claude') || modelId.includes('.anthropic.claude');
+  
+  if (!isClaudeModel) {
+    throw new Error('Only Claude models are currently supported for Bedrock in templates API');
+  }
+  
+  const requestBody = {
+    anthropic_version: 'bedrock-2023-05-31',
+    max_tokens: 800,
+    temperature: 0.3,
+    messages: [
+      {
+        role: 'user',
+        content: [{ type: 'text', text: userPrompt }],
+      },
+    ],
+    system: systemPrompt,
+  };
+  
+  const command = new InvokeModelCommand({
+    modelId,
+    contentType: 'application/json',
+    accept: 'application/json',
+    body: JSON.stringify(requestBody),
+  });
+  
+  const response = await bedrockClient.send(command);
+  const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+  
+  if (responseBody.content && Array.isArray(responseBody.content)) {
+    return responseBody.content
+      .filter((item: any) => item.type === 'text')
+      .map((item: any) => item.text)
+      .join('');
+  }
+  
+  return '';
+}
 
 function getOpenAIClient() {
   const provider = process.env.LLM_PROVIDER;
@@ -26,7 +127,13 @@ function getOpenAIClient() {
 
 function getModelName() {
   const provider = process.env.LLM_PROVIDER;
-  if (provider === 'local') {
+  
+  if (provider === 'bedrock') {
+    const defaultModel = process.env.AWS_BEARER_TOKEN_BEDROCK 
+      ? 'eu.anthropic.claude-sonnet-4-5-20250929-v1:0'
+      : 'anthropic.claude-3-5-sonnet-20241022-v2:0';
+    return process.env.BEDROCK_MODEL_ID || defaultModel;
+  } else if (provider === 'local') {
     return process.env.LOCAL_LLM_MODEL || 'gpt-oss20B';
   }
   return process.env.OPENAI_MODEL || 'gpt-4';
@@ -48,7 +155,7 @@ const SUPPORTED_LANGUAGES = ['en', 'ja', 'es', 'fr', 'de', 'zh', 'it', 'rm', 'gs
 
 // Generate a formatted overview from the prompt
 async function generateOverview(prompt: string): Promise<string> {
-  const openai = getOpenAIClient();
+  const provider = process.env.LLM_PROVIDER;
   const modelName = getModelName();
 
   try {
@@ -65,17 +172,24 @@ async function generateOverview(prompt: string): Promise<string> {
       ? 'You are a helpful assistant. The user will provide interview instructions in JSON format. Extract and format the key information into a clear, readable overview for interview participants. Keep it concise (3-5 sentences) and focused on what the interview covers. Write in a friendly, professional tone.'
       : 'You are a helpful assistant. The user will provide interview instructions. Format them into a clear, readable overview for interview participants. If the text is long, create a concise summary (3-5 sentences). Keep the tone friendly and professional.';
 
-    const completion = await openai.chat.completions.create({
-      model: modelName,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: prompt },
-      ],
-      ...(modelName.startsWith('gpt-5') ? {} : { temperature: 0.3 }),
-      ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 500 } : { max_tokens: 500 }),
-    });
+    let overview = '';
+    
+    if (provider === 'bedrock') {
+      overview = await callBedrockSimple(modelName, systemPrompt, prompt);
+    } else {
+      const openai = getOpenAIClient();
+      const completion = await openai.chat.completions.create({
+        model: modelName,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt },
+        ],
+        ...(modelName.startsWith('gpt-5') ? {} : { temperature: 0.3 }),
+        ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 500 } : { max_tokens: 500 }),
+      });
+      overview = completion.choices[0].message.content?.trim() || '';
+    }
 
-    const overview = completion.choices[0].message.content?.trim();
     return overview || prompt;
   } catch (error) {
     console.error('Failed to generate overview, using original prompt:', error);
@@ -88,8 +202,8 @@ async function generateOverview(prompt: string): Promise<string> {
 }
 
 async function translateText(text: string, targetLangCode: string): Promise<string> {
+  const provider = process.env.LLM_PROVIDER;
   const languageName = languageNames[targetLangCode] || 'English';
-  const openai = getOpenAIClient();
   const modelName = getModelName();
 
   // Helper to detect if output still contains CJK characters (likely untranslated)
@@ -107,33 +221,50 @@ async function translateText(text: string, targetLangCode: string): Promise<stri
       return `Translate the following text to ${languageName}. Only return the translated text without quotes.`;
     })();
 
-    const completion = await openai.chat.completions.create({
-      model: modelName,
-      messages: [
-        { role: 'system', content: systemInstructions },
-        { role: 'user', content: text },
-      ],
-      ...(modelName.startsWith('gpt-5') ? {} : { temperature: 0.0 }),
-      ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 800 } : { max_tokens: 800 }),
-    });
+    let result = '';
+    
+    if (provider === 'bedrock') {
+      result = await callBedrockSimple(modelName, systemInstructions, text);
+      
+      // Fallback for Swiss German
+      if (targetLangCode === 'gsw' && (!result || result === text || containsCJK(result))) {
+        try {
+          const fallbackSystemPrompt = 'First translate the user text to Standard German. Then rewrite that German translation into Swiss German (gsw) using natural Swiss German orthography and vocabulary. Return only the final Swiss German text without quotes.';
+          result = await callBedrockSimple(modelName, fallbackSystemPrompt, text);
+        } catch (fallbackErr) {
+          console.error('Swiss German fallback translation failed:', fallbackErr);
+        }
+      }
+    } else {
+      const openai = getOpenAIClient();
+      const completion = await openai.chat.completions.create({
+        model: modelName,
+        messages: [
+          { role: 'system', content: systemInstructions },
+          { role: 'user', content: text },
+        ],
+        ...(modelName.startsWith('gpt-5') ? {} : { temperature: 0.0 }),
+        ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 800 } : { max_tokens: 800 }),
+      });
 
-    let result = completion.choices[0].message.content?.trim();
+      result = completion.choices[0].message.content?.trim() || '';
 
-    // Fallback for Swiss German: sometimes models return source text or High German
-    if (targetLangCode === 'gsw' && (!result || result === text || containsCJK(result))) {
-      try {
-        const fallback = await openai.chat.completions.create({
-          model: modelName,
-          messages: [
-            { role: 'system', content: 'First translate the user text to Standard German. Then rewrite that German translation into Swiss German (gsw) using natural Swiss German orthography and vocabulary. Return only the final Swiss German text without quotes.' },
-            { role: 'user', content: text },
-          ],
-          ...(modelName.startsWith('gpt-5') ? {} : { temperature: 0.0 }),
-          ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 800 } : { max_tokens: 800 }),
-        });
-        result = fallback.choices[0].message.content?.trim() || result;
-      } catch (fallbackErr) {
-        console.error('Swiss German fallback translation failed:', fallbackErr);
+      // Fallback for Swiss German: sometimes models return source text or High German
+      if (targetLangCode === 'gsw' && (!result || result === text || containsCJK(result))) {
+        try {
+          const fallback = await openai.chat.completions.create({
+            model: modelName,
+            messages: [
+              { role: 'system', content: 'First translate the user text to Standard German. Then rewrite that German translation into Swiss German (gsw) using natural Swiss German orthography and vocabulary. Return only the final Swiss German text without quotes.' },
+              { role: 'user', content: text },
+            ],
+            ...(modelName.startsWith('gpt-5') ? {} : { temperature: 0.0 }),
+            ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 800 } : { max_tokens: 800 }),
+          });
+          result = fallback.choices[0].message.content?.trim() || result;
+        } catch (fallbackErr) {
+          console.error('Swiss German fallback translation failed:', fallbackErr);
+        }
       }
     }
 
