@@ -213,10 +213,10 @@ Format your response in clear, professional ${languageName}. Structure it with p
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = params.id;
+    const { id: sessionId } = await params;
     
     // Get session details
     const sessionStmt = db.prepare('SELECT * FROM interview_sessions WHERE id = ?');
@@ -273,10 +273,10 @@ export async function POST(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = params.id;
+    const { id: sessionId } = await params;
     
     // Get session with summary
     const sessionStmt = db.prepare('SELECT summary FROM interview_sessions WHERE id = ?');
