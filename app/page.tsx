@@ -4,6 +4,39 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { InterviewTemplate } from '@/lib/types';
 
+// Simple helper to strip basic Markdown syntax for preview text
+function stripMarkdown(input: string | undefined | null): string {
+  if (!input) return '';
+
+  let text = input;
+
+  // Remove fenced code blocks
+  text = text.replace(/```[\s\S]*?```/g, '');
+
+  // Remove inline code backticks but keep content
+  text = text.replace(/`([^`]+)`/g, '$1');
+
+  // Remove headings (#, ##, etc.)
+  text = text.replace(/^#{1,6}\s+/gm, '');
+
+  // Bold and italic (**text**, *text*, __text__, _text_)
+  text = text.replace(/\*\*([^*]+)\*\*/g, '$1');
+  text = text.replace(/__([^_]+)__/g, '$1');
+  text = text.replace(/(\s)[*_]([^*_]+)[*_](\s)/g, '$1$2$3');
+
+  // Remove list markers (-, *, + at line start)
+  text = text.replace(/^\s*[-*+]\s+/gm, '');
+
+  // Links and images: keep the alt/text part
+  text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1');
+  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+
+  // Collapse multiple newlines into a single space
+  text = text.replace(/\s*\n+\s*/g, ' ');
+
+  return text.trim();
+}
+
 export default function Home() {
   const [templates, setTemplates] = useState<InterviewTemplate[]>([]);
   const [selectedLanguage, setSelectedLanguage] = useState('en');
@@ -239,23 +272,28 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="grid gap-4">
-                  {templates.map((template) => (
-                    <Link
-                      key={template.id}
-                      href={`/interview/${template.id}?lang=${selectedLanguage}`}
-                      className="block p-6 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                        {template.title}
-                      </h3>
-                      <p className="text-gray-600 dark:text-gray-300 mb-2">
-                        {localizedText.duration}: {Math.floor(template.duration / 60)} {localizedText.minutes}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
-                        {template.prompt}
-                      </p>
-                    </Link>
-                  ))}
+                  {templates.map((template) => {
+                    const rawText = template.overview || template.prompt || '';
+                    const preview = stripMarkdown(rawText);
+
+                    return (
+                      <Link
+                        key={template.id}
+                        href={`/interview/${template.id}?lang=${selectedLanguage}`}
+                        className="block p-6 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                      >
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                          {template.title}
+                        </h3>
+                        <p className="text-gray-600 dark:text-gray-300 mb-2">
+                          {localizedText.duration}: {Math.floor(template.duration / 60)} {localizedText.minutes}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 max-w-none">
+                          {preview}
+                        </p>
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </div>
