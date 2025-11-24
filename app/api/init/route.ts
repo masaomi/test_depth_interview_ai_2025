@@ -23,20 +23,37 @@ function getBedrockClient(): BedrockRuntimeClient | null {
   
   console.log(`Using Amazon Bedrock in region ${region}`);
   
+  let client: BedrockRuntimeClient;
+  
   // Check if using Bearer token authentication or Access Key authentication
   if (bearerToken) {
     console.log('Using Bearer token authentication for Bedrock');
     // Bearer token authentication - credentials are not used for signing
-    return new BedrockRuntimeClient({
+    client = new BedrockRuntimeClient({
       region,
       credentials: {
         accessKeyId: 'BEARER_TOKEN',
         secretAccessKey: '',
       },
     });
+    
+    // Add middleware to inject Bearer token into request headers
+    client.middlewareStack.add(
+      (next: any) => async (args: any) => {
+        if (args.request && args.request.headers) {
+          args.request.headers['Authorization'] = `Bearer ${bearerToken}`;
+        }
+        return next(args);
+      },
+      {
+        step: 'build',
+        name: 'addBearerToken',
+        priority: 'high',
+      }
+    );
   } else if (accessKeyId && secretAccessKey) {
     console.log('Using Access Key authentication for Bedrock');
-    return new BedrockRuntimeClient({
+    client = new BedrockRuntimeClient({
       region,
       credentials: {
         accessKeyId,
@@ -46,6 +63,8 @@ function getBedrockClient(): BedrockRuntimeClient | null {
   } else {
     throw new Error('Either AWS_BEARER_TOKEN_BEDROCK or (AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY) are required for Bedrock');
   }
+  
+  return client;
 }
 
 async function callBedrockAPI(
@@ -55,25 +74,6 @@ async function callBedrockAPI(
   languageName: string
 ): Promise<string> {
   try {
-    // Add bearer token to request headers if configured
-    const bearerToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
-    if (bearerToken) {
-      // Add middleware to inject Bearer token into request headers
-      client.middlewareStack.add(
-        (next: any) => async (args: any) => {
-          if (args.request && args.request.headers) {
-            args.request.headers['Authorization'] = `Bearer ${bearerToken}`;
-          }
-          return next(args);
-        },
-        {
-          step: 'build',
-          name: 'addBearerToken',
-          priority: 'high',
-        }
-      );
-    }
-    
     // Convert messages to Bedrock format
     // For Claude models, we need to separate system messages from conversation
     const systemMessages = messages.filter(m => m.role === 'system');
