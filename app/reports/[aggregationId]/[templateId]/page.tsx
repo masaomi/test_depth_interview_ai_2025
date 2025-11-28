@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { ReportAggregation, ReportDetail } from '@/lib/types';
 
-export default function ReportDetailPage() {
+function ReportDetailPageContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const aggregationId = params?.aggregationId as string;
   const templateId = params?.templateId as string;
   const [language, setLanguage] = useState('en');
@@ -15,22 +16,17 @@ export default function ReportDetailPage() {
   const [reportDetail, setReportDetail] = useState<ReportDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Load language preference from localStorage (saved from home page)
+  // Load language from URL parameter first, then fallback to localStorage
   useEffect(() => {
+    const langParam = searchParams.get('lang');
     const savedLang = localStorage.getItem('app_language') || 'en';
-    setLanguage(savedLang);
-  }, []);
+    setLanguage(langParam || savedLang);
+  }, [searchParams]);
 
-  useEffect(() => {
-    if (language) {
-      fetchReportDetail();
-    }
-  }, [aggregationId, templateId, language]);
-
-  const fetchReportDetail = async () => {
+  const fetchReportDetail = async (lang: string) => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/reports/${aggregationId}?language=${language}`);
+      const response = await fetch(`/api/reports/${aggregationId}?language=${lang}`);
       const data = await response.json();
       
       setAggregation(data.aggregation);
@@ -44,6 +40,12 @@ export default function ReportDetailPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (language && aggregationId && templateId) {
+      fetchReportDetail(language);
+    }
+  }, [aggregationId, templateId, language]);
 
   const getLocale = (lang: string) => {
     const map: Record<string, string> = {
@@ -177,7 +179,7 @@ export default function ReportDetailPage() {
         <div className="max-w-5xl mx-auto">
           <div className="mb-8 flex justify-between items-center">
             <Link
-              href={`/reports?language=${language}`}
+              href={`/reports?lang=${language}`}
               className="text-indigo-600 dark:text-indigo-400 hover:underline"
             >
               {t('backToList')}
@@ -301,7 +303,7 @@ export default function ReportDetailPage() {
               {t('startNew')}
             </Link>
             <Link
-              href={`/reports?language=${language}`}
+              href={`/reports?lang=${language}`}
               className="px-8 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
             >
               {t('backToList')}
@@ -310,6 +312,21 @@ export default function ReportDetailPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ReportDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
+        </div>
+      </div>
+    }>
+      <ReportDetailPageContent />
+    </Suspense>
   );
 }
 

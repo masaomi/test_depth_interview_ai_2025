@@ -250,7 +250,7 @@ export default function Home() {
                 </Link>
               )}
               <Link
-                href="/reports"
+                href={`/reports?lang=${selectedLanguage}`}
                 className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
               >
                 📊 {selectedLanguage === 'ja' ? '集計結果を見る' : 'View Reports'}

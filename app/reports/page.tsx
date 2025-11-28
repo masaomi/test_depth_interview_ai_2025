@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { ReportAggregation, ReportDetail } from '@/lib/types';
 
 // Locale and text helpers
@@ -288,7 +289,8 @@ const formatDuration = (seconds: number | undefined | null, lang: string, fallba
   return `${minutes} ${unit}`;
 };
 
-export default function ReportsPage() {
+function ReportsPageContent() {
+  const searchParams = useSearchParams();
   const [aggregations, setAggregations] = useState<ReportAggregation[]>([]);
   const [selectedAggregationId, setSelectedAggregationId] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState('en');
@@ -298,20 +300,22 @@ export default function ReportsPage() {
 
   const t = getTexts(selectedLanguage);
 
-  // Load language preference from localStorage (saved from home page)
+  // Load language from URL parameter first, then fallback to localStorage
   useEffect(() => {
+    const langParam = searchParams.get('lang');
     const savedLang = localStorage.getItem('app_language') || 'en';
-    setSelectedLanguage(savedLang);
-  }, []);
+    setSelectedLanguage(langParam || savedLang);
+  }, [searchParams]);
 
   useEffect(() => {
     fetchAggregations();
   }, []);
 
   useEffect(() => {
-    if (selectedAggregationId) {
+    if (selectedAggregationId && selectedLanguage) {
       fetchReportDetails(selectedAggregationId, selectedLanguage);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAggregationId, selectedLanguage]);
 
   const fetchAggregations = async () => {
@@ -556,7 +560,7 @@ export default function ReportsPage() {
                         </td>
                         <td className="px-6 py-4 text-center">
                           <Link
-                            href={`/reports/${selectedAggregationId}/${detail.template_id}`}
+                            href={`/reports/${selectedAggregationId}/${detail.template_id}?lang=${selectedLanguage}`}
                             className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 text-sm font-medium"
                           >
                             {t.viewSummary}
@@ -572,6 +576,21 @@ export default function ReportsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ReportsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
+        </div>
+      </div>
+    }>
+      <ReportsPageContent />
+    </Suspense>
   );
 }
 
