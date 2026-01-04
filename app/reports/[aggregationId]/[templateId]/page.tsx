@@ -120,7 +120,7 @@ function ReportDetailPageContent() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleString(getLocale(language), {
+    return date.toLocaleString(getLocale(language || 'en'), {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
