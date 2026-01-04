@@ -10,7 +10,8 @@ function ReportDetailPageContent() {
   const searchParams = useSearchParams();
   const aggregationId = params?.aggregationId as string;
   const templateId = params?.templateId as string;
-  const [language, setLanguage] = useState('en');
+  const [language, setLanguage] = useState<string | null>(null);
+  const [isLanguageReady, setIsLanguageReady] = useState(false);
 
   const [aggregation, setAggregation] = useState<ReportAggregation | null>(null);
   const [reportDetail, setReportDetail] = useState<ReportDetail | null>(null);
@@ -21,6 +22,7 @@ function ReportDetailPageContent() {
     const langParam = searchParams.get('lang');
     const savedLang = localStorage.getItem('app_language') || 'en';
     setLanguage(langParam || savedLang);
+    setIsLanguageReady(true);
   }, [searchParams]);
 
   const fetchReportDetail = async (lang: string) => {
@@ -42,10 +44,10 @@ function ReportDetailPageContent() {
   };
 
   useEffect(() => {
-    if (language && aggregationId && templateId) {
+    if (isLanguageReady && language && aggregationId && templateId) {
       fetchReportDetail(language);
     }
-  }, [aggregationId, templateId, language]);
+  }, [aggregationId, templateId, language, isLanguageReady]);
 
   const getLocale = (lang: string) => {
     const map: Record<string, string> = {
@@ -105,7 +107,7 @@ function ReportDetailPageContent() {
         startNew: '新規インタビューを開始',
       },
     };
-    const langDict = dict[language] || dict.en;
+    const langDict = dict[language || 'en'] || dict.en;
     return langDict[key] || key;
   };
 
