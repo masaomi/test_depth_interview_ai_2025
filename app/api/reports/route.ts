@@ -304,7 +304,7 @@ Respond ONLY with the translated JSON in the same format:
     let responseText = '';
     
     if (provider === 'bedrock') {
-      responseText = await callBedrockForAnalysis(modelName, translationPrompt, 2500);
+      responseText = await callBedrockForAnalysis(modelName, translationPrompt, 4500);
     } else {
       const openai = getOpenAIClient();
       const isGpt5 = modelName.startsWith('gpt-5');
@@ -314,28 +314,35 @@ Respond ONLY with the translated JSON in the same format:
           { role: 'user', content: translationPrompt }
         ],
         ...(isGpt5 ? {} : { temperature: 0.3 }),
-        ...(isGpt5 ? { max_completion_tokens: 2500 } : { max_tokens: 2500 }),
+        ...(isGpt5 ? { max_completion_tokens: 4500 } : { max_tokens: 4500 }),
       });
       responseText = completion.choices[0]?.message?.content?.trim() || '';
     }
 
+    // Debug log: show first 800 chars of translation response
+    console.log(`[Translation ${targetLanguage}] Response preview (first 800 chars):`, responseText.substring(0, 800));
+    console.log(`[Translation ${targetLanguage}] Response length: ${responseText.length} chars`);
+
     let translated = safeParseJson<AnalysisResult>(responseText);
 
     if (!translated) {
+      console.warn(`[Translation ${targetLanguage}] Initial JSON parse failed. Attempting repair...`);
       // Repair attempt
       const repairPrompt = `Fix the following into STRICT VALID JSON (no code fences, no comments) preserving meaning. Keys must be: executive_summary (string), key_findings (string array), segment_analysis (string), recommended_actions (string array).\n\nCONTENT:\n${responseText}`;
       
       if (provider === 'bedrock') {
-        const repairedText = await callBedrockForAnalysis(modelName, repairPrompt, 1000);
+        const repairedText = await callBedrockForAnalysis(modelName, repairPrompt, 2000);
+        console.log(`[Translation ${targetLanguage}] Repair response preview:`, repairedText.substring(0, 500));
         translated = safeParseJson<AnalysisResult>(repairedText);
       } else {
         const openai = getOpenAIClient();
         const repaired = await openai.chat.completions.create({
           model: modelName,
           messages: [{ role: 'user', content: repairPrompt }] as any,
-          ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 1000 } : { max_tokens: 1000, temperature: 0 }),
+          ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 2000 } : { max_tokens: 2000, temperature: 0 }),
         });
         const repairedText = repaired.choices[0]?.message?.content?.trim() || '';
+        console.log(`[Translation ${targetLanguage}] Repair response preview:`, repairedText.substring(0, 500));
         translated = safeParseJson<AnalysisResult>(repairedText);
       }
     }
@@ -344,6 +351,7 @@ Respond ONLY with the translated JSON in the same format:
       console.warn(`JSON repair failed for language ${targetLanguage}; falling back to English.`);
       return analysis; // fallback to English analysis
     }
+    console.log(`[Translation ${targetLanguage}] Successfully parsed JSON.`);
     return translated;
   } catch (error) {
     console.warn(`Error translating to ${targetLanguage}:`, error);
