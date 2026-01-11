@@ -16,6 +16,7 @@ db.exec(`
     overview TEXT,
     duration INTEGER NOT NULL DEFAULT 600,
     translations TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -26,6 +27,9 @@ db.exec(`
     started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     ended_at DATETIME,
     status TEXT DEFAULT 'active',
+    summary TEXT,
+    persona_id TEXT,
+    is_virtual INTEGER DEFAULT 0,
     FOREIGN KEY (template_id) REFERENCES interview_templates(id)
   );
 
@@ -68,6 +72,26 @@ db.exec(`
     FOREIGN KEY (template_id) REFERENCES interview_templates(id)
   );
 
+  CREATE TABLE IF NOT EXISTS personas (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    base_prompt TEXT NOT NULL,
+    variation_params TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS token_usage_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT,
+    api_endpoint TEXT NOT NULL,
+    model_name TEXT NOT NULL,
+    input_tokens INTEGER NOT NULL,
+    output_tokens INTEGER NOT NULL,
+    total_tokens INTEGER NOT NULL,
+    is_virtual INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE INDEX IF NOT EXISTS idx_report_details_lang 
     ON report_details(aggregation_id, template_id, language);
 
@@ -107,7 +131,10 @@ ensureColumn('interview_templates', 'overview', `ALTER TABLE interview_templates
 ensureColumn('interview_sessions', 'summary', `ALTER TABLE interview_sessions ADD COLUMN summary TEXT`);
 
 // Add is_active column to interview_templates if it doesn't exist (migration)
-// Default to 1 (active) for existing templates
 ensureColumn('interview_templates', 'is_active', `ALTER TABLE interview_templates ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1`);
+
+// New migrations for virtual persona features
+ensureColumn('interview_sessions', 'persona_id', `ALTER TABLE interview_sessions ADD COLUMN persona_id TEXT`);
+ensureColumn('interview_sessions', 'is_virtual', `ALTER TABLE interview_sessions ADD COLUMN is_virtual INTEGER DEFAULT 0`);
 
 export default db;

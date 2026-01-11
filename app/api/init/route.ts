@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import db from '@/lib/db';
 import { InterviewTemplate, Message } from '@/lib/types';
+import { logTokenUsage } from '@/lib/token-logger';
 
 // Bedrock client and helper functions
 function getBedrockClient(): BedrockRuntimeClient | null {
@@ -244,6 +245,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
+    const isVirtual = session.is_virtual === 1;
+
     // Get template
     const templateStmt = db.prepare('SELECT * FROM interview_templates WHERE id = ?');
     const template = templateStmt.get(session.template_id) as InterviewTemplate;
@@ -293,6 +296,16 @@ export async function POST(request: NextRequest) {
         
         greeting = await callBedrockAPI(bedrockClient, modelName, greetingMessages, languageName);
         
+        // Log Bedrock usage
+        logTokenUsage({
+          sessionId: session_id,
+          endpoint: '/api/init',
+          model: modelName,
+          inputTokens: Math.ceil(JSON.stringify(greetingMessages).length / 4),
+          outputTokens: Math.ceil(greeting.length / 4),
+          isVirtual: isVirtual
+        });
+
         // Translate title
         try {
           const languageDisplay = languageNames[session.language] || 'English';
@@ -301,6 +314,16 @@ export async function POST(request: NextRequest) {
             { role: 'user', content: template.title },
           ];
           localizedTitle = await callBedrockAPI(bedrockClient, modelName, titleMessages, languageDisplay);
+          
+          logTokenUsage({
+            sessionId: session_id,
+            endpoint: '/api/init/title',
+            model: modelName,
+            inputTokens: Math.ceil(JSON.stringify(titleMessages).length / 4),
+            outputTokens: Math.ceil((localizedTitle || '').length / 4),
+            isVirtual: isVirtual
+          });
+
           if (!localizedTitle) {
             localizedTitle = template.title;
           }
@@ -331,6 +354,17 @@ export async function POST(request: NextRequest) {
         ...(isGpt5 ? { max_completion_tokens: 300 } : { max_tokens: 300 }),
       });
       
+      if (completion.usage) {
+        logTokenUsage({
+          sessionId: session_id,
+          endpoint: '/api/init',
+          model: modelName,
+          inputTokens: completion.usage.prompt_tokens,
+          outputTokens: completion.usage.completion_tokens,
+          isVirtual: isVirtual
+        });
+      }
+
       greeting = completion.choices[0].message.content || 'Hello! Thank you for participating in this interview. Let\'s begin.';
 
       // Optionally translate template.title to session language for UI consumption
@@ -345,6 +379,18 @@ export async function POST(request: NextRequest) {
           ...(isGpt5 ? {} : { temperature: 0.0 }),
           ...(isGpt5 ? { max_completion_tokens: 60 } : { max_tokens: 60 }),
         });
+        
+        if (completionTitle.usage) {
+          logTokenUsage({
+            sessionId: session_id,
+            endpoint: '/api/init/title',
+            model: modelName,
+            inputTokens: completionTitle.usage.prompt_tokens,
+            outputTokens: completionTitle.usage.completion_tokens,
+            isVirtual: isVirtual
+          });
+        }
+
         localizedTitle = completionTitle.choices[0].message.content?.trim() || template.title;
       } catch (e) {
         console.warn('Title translation failed, fallback to original title');

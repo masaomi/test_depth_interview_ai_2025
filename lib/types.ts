@@ -23,6 +23,8 @@ export interface InterviewSession {
   ended_at?: string;
   status: 'active' | 'completed' | 'extended';
   summary?: string;
+  persona_id?: string;
+  is_virtual?: number; // 0 = human, 1 = virtual
 }
 
 export type QuestionType = 'text' | 'single_choice' | 'multi_choice' | 'scale';
@@ -92,4 +94,24 @@ export interface ReportDetail {
   key_findings?: string; // JSON string
   segment_analysis?: string;
   recommended_actions?: string; // JSON string
+}
+
+export interface Persona {
+  id: string;
+  name: string;
+  base_prompt: string;
+  variation_params?: string; // JSON string
+  created_at?: string;
+}
+
+export interface TokenUsageLog {
+  id: number;
+  session_id?: string;
+  api_endpoint: string;
+  model_name: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  is_virtual: number;
+  created_at: string;
 }

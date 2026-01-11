@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import db from '@/lib/db';
 import { Message, InterviewTemplate, AIResponse, QuestionMetadata, ResponseMetadata } from '@/lib/types';
+import { logTokenUsage } from '@/lib/token-logger';
 
 // Normalize helpers to make LLM outputs robust against minor format differences
 function normalizeQuestionType(rawType: unknown): QuestionMetadata['type'] {
@@ -394,6 +395,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
+    const isVirtual = session.is_virtual === 1;
+
     // Get template
     const templateStmt = db.prepare('SELECT * FROM interview_templates WHERE id = ?');
     const template = templateStmt.get(session.template_id) as InterviewTemplate;
@@ -453,6 +456,19 @@ export async function POST(request: NextRequest) {
       try {
         rawResponse = await callBedrockAPI(bedrockClient, modelName, messages, languageName);
         
+        // Log estimated token usage for Bedrock
+        const inputTokens = JSON.stringify(messages).length / 4; 
+        const outputTokens = rawResponse.length / 4;
+        
+        logTokenUsage({
+          sessionId: session_id,
+          endpoint: '/api/chat',
+          model: modelName,
+          inputTokens: Math.ceil(inputTokens),
+          outputTokens: Math.ceil(outputTokens),
+          isVirtual: isVirtual
+        });
+        
         // Bedrock retry with simplified prompt if empty response
         if (!rawResponse) {
           console.warn('Bedrock returned empty content, retrying with simplified prompt');
@@ -481,6 +497,17 @@ export async function POST(request: NextRequest) {
         ...(isGpt5 ? { max_completion_tokens: 800 } : { max_tokens: 800 }),
       });
       rawResponse = completion.choices[0]?.message?.content?.trim() || '';
+
+      if (completion.usage) {
+        logTokenUsage({
+          sessionId: session_id,
+          endpoint: '/api/chat',
+          model: modelName,
+          inputTokens: completion.usage.prompt_tokens,
+          outputTokens: completion.usage.completion_tokens,
+          isVirtual: isVirtual
+        });
+      }
 
       // GPT-5 sometimes returns empty content; do a simplified retry without history
       if (!rawResponse && isGpt5) {

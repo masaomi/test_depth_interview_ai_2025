@@ -4,6 +4,7 @@ import { InterviewTemplate } from '@/lib/types';
 import { randomUUID } from 'crypto';
 import OpenAI from 'openai';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
+import { logTokenUsage } from '@/lib/token-logger';
 
 // Bedrock client setup
 function getBedrockClient(): BedrockRuntimeClient | null {
@@ -176,6 +177,14 @@ async function generateOverview(prompt: string): Promise<string> {
     
     if (provider === 'bedrock') {
       overview = await callBedrockSimple(modelName, systemPrompt, prompt);
+      
+      logTokenUsage({
+        endpoint: '/api/templates/overview',
+        model: modelName,
+        inputTokens: Math.ceil((systemPrompt.length + prompt.length) / 4),
+        outputTokens: Math.ceil(overview.length / 4),
+        isVirtual: false // templates are admin actions
+      });
     } else {
       const openai = getOpenAIClient();
       const completion = await openai.chat.completions.create({
@@ -187,6 +196,17 @@ async function generateOverview(prompt: string): Promise<string> {
         ...(modelName.startsWith('gpt-5') ? {} : { temperature: 0.3 }),
         ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 500 } : { max_tokens: 500 }),
       });
+      
+      if (completion.usage) {
+        logTokenUsage({
+          endpoint: '/api/templates/overview',
+          model: modelName,
+          inputTokens: completion.usage.prompt_tokens,
+          outputTokens: completion.usage.completion_tokens,
+          isVirtual: false
+        });
+      }
+      
       overview = completion.choices[0].message.content?.trim() || '';
     }
 
@@ -232,11 +252,27 @@ async function translateText(text: string, targetLangCode: string): Promise<stri
     if (provider === 'bedrock') {
       result = await callBedrockSimple(modelName, systemInstructions, text);
       
+      logTokenUsage({
+        endpoint: '/api/templates/translate',
+        model: modelName,
+        inputTokens: Math.ceil((systemInstructions.length + text.length) / 4),
+        outputTokens: Math.ceil(result.length / 4),
+        isVirtual: false
+      });
+      
       // Fallback for Swiss German
       if (targetLangCode === 'gsw' && (!result || result === text || containsCJK(result))) {
         try {
           const fallbackSystemPrompt = 'First translate the user text to Standard German. Then rewrite that German translation into Swiss German (gsw) using natural Swiss German orthography and vocabulary. Return only the final Swiss German text without quotes.';
           result = await callBedrockSimple(modelName, fallbackSystemPrompt, text);
+          
+          logTokenUsage({
+            endpoint: '/api/templates/translate/fallback',
+            model: modelName,
+            inputTokens: Math.ceil((fallbackSystemPrompt.length + text.length) / 4),
+            outputTokens: Math.ceil(result.length / 4),
+            isVirtual: false
+          });
         } catch (fallbackErr) {
           console.error('Swiss German fallback translation failed:', fallbackErr);
         }
@@ -253,6 +289,16 @@ async function translateText(text: string, targetLangCode: string): Promise<stri
         ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 800 } : { max_tokens: 800 }),
       });
 
+      if (completion.usage) {
+        logTokenUsage({
+          endpoint: '/api/templates/translate',
+          model: modelName,
+          inputTokens: completion.usage.prompt_tokens,
+          outputTokens: completion.usage.completion_tokens,
+          isVirtual: false
+        });
+      }
+
       result = completion.choices[0].message.content?.trim() || '';
 
       // Fallback for Swiss German: sometimes models return source text or High German
@@ -267,6 +313,17 @@ async function translateText(text: string, targetLangCode: string): Promise<stri
             ...(modelName.startsWith('gpt-5') ? {} : { temperature: 0.0 }),
             ...(modelName.startsWith('gpt-5') ? { max_completion_tokens: 800 } : { max_tokens: 800 }),
           });
+          
+          if (fallback.usage) {
+            logTokenUsage({
+              endpoint: '/api/templates/translate/fallback',
+              model: modelName,
+              inputTokens: fallback.usage.prompt_tokens,
+              outputTokens: fallback.usage.completion_tokens,
+              isVirtual: false
+            });
+          }
+          
           result = fallback.choices[0].message.content?.trim() || result;
         } catch (fallbackErr) {
           console.error('Swiss German fallback translation failed:', fallbackErr);

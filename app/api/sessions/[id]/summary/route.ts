@@ -3,6 +3,7 @@ import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedroc
 import OpenAI from 'openai';
 import db from '@/lib/db';
 import { Message, ConversationLog } from '@/lib/types';
+import { logTokenUsage } from '@/lib/token-logger';
 
 // Bedrock client setup (reused from chat API)
 function getBedrockClient(): BedrockRuntimeClient | null {
@@ -140,7 +141,8 @@ async function generateSummary(
   sessionId: string,
   templateTitle: string,
   language: string,
-  conversations: ConversationLog[]
+  conversations: ConversationLog[],
+  isVirtual: boolean = false
 ): Promise<string> {
   const provider = process.env.LLM_PROVIDER;
   const modelName = getModelName();
@@ -188,6 +190,15 @@ Format your response in clear, professional ${languageName}. Structure it with p
     
     if (provider === 'bedrock') {
       summary = await callBedrockForSummary(modelName, summaryPrompt);
+      
+      logTokenUsage({
+        sessionId,
+        endpoint: '/api/sessions/summary',
+        model: modelName,
+        inputTokens: Math.ceil(summaryPrompt.length / 4),
+        outputTokens: Math.ceil(summary.length / 4),
+        isVirtual
+      });
     } else {
       const openai = getOpenAIClient();
       const isGpt5 = modelName.startsWith('gpt-5');
@@ -197,6 +208,18 @@ Format your response in clear, professional ${languageName}. Structure it with p
         ...(isGpt5 ? {} : { temperature: 0.3 }),
         ...(isGpt5 ? { max_completion_tokens: 1500 } : { max_tokens: 1500 }),
       });
+      
+      if (completion.usage) {
+        logTokenUsage({
+          sessionId,
+          endpoint: '/api/sessions/summary',
+          model: modelName,
+          inputTokens: completion.usage.prompt_tokens,
+          outputTokens: completion.usage.completion_tokens,
+          isVirtual
+        });
+      }
+      
       summary = completion.choices[0]?.message?.content?.trim() || '';
     }
     
@@ -254,7 +277,8 @@ export async function POST(
       sessionId,
       template.title,
       session.language,
-      logs
+      logs,
+      session.is_virtual === 1
     );
     
     // Save summary to database
@@ -296,4 +320,3 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to fetch summary' }, { status: 500 });
   }
 }
-
