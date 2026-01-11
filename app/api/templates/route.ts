@@ -202,6 +202,12 @@ async function generateOverview(prompt: string): Promise<string> {
 }
 
 async function translateText(text: string, targetLangCode: string): Promise<string> {
+  // Skip translation for English - return original text as-is
+  // This prevents LLM from "explaining" or expanding simple titles
+  if (targetLangCode === 'en') {
+    return text;
+  }
+
   const provider = process.env.LLM_PROVIDER;
   const languageName = languageNames[targetLangCode] || 'English';
   const modelName = getModelName();

@@ -4,6 +4,23 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Message, InterviewTemplate, QuestionMetadata, ResponseMetadata } from '@/lib/types';
 
+// Simple helper to strip basic Markdown syntax for display
+function stripMarkdown(input: string | undefined | null): string {
+  if (!input) return '';
+  let text = input;
+  text = text.replace(/```[\s\S]*?```/g, '');
+  text = text.replace(/`([^`]+)`/g, '$1');
+  text = text.replace(/^#{1,6}\s+/gm, '');
+  text = text.replace(/\*\*([^*]+)\*\*/g, '$1');
+  text = text.replace(/__([^_]+)__/g, '$1');
+  text = text.replace(/(\s)[*_]([^*_]+)[*_](\s)/g, '$1$2$3');
+  text = text.replace(/^\s*[-*+]\s+/gm, '');
+  text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1');
+  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  text = text.replace(/\s*\n+\s*/g, ' ');
+  return text.trim();
+}
+
 export default function InterviewPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -75,7 +92,10 @@ export default function InterviewPage() {
       const template = templates.find((t: InterviewTemplate) => t.id === templateId);
       if (template) {
         setTemplateData(template);
-        setInterviewTitle(template.title);
+        // Clean and truncate title for display
+        const cleanTitle = stripMarkdown(template.title);
+        const displayTitle = cleanTitle.length > 100 ? cleanTitle.substring(0, 100) + '...' : cleanTitle;
+        setInterviewTitle(displayTitle);
         setDuration(template.duration);
       }
       setLoading(false);
