@@ -106,4 +106,8 @@ ensureColumn('interview_templates', 'overview', `ALTER TABLE interview_templates
 // Add summary column to interview_sessions if it doesn't exist (migration)
 ensureColumn('interview_sessions', 'summary', `ALTER TABLE interview_sessions ADD COLUMN summary TEXT`);
 
+// Add is_active column to interview_templates if it doesn't exist (migration)
+// Default to 1 (active) for existing templates
+ensureColumn('interview_templates', 'is_active', `ALTER TABLE interview_templates ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1`);
+
 export default db;

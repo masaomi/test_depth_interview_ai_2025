@@ -11,6 +11,7 @@ export interface InterviewTemplate {
   overview?: string; // Formatted overview for display on interview start screen
   duration: number;
   translations?: string; // JSON string of translations
+  is_active?: number; // 1 = active (visible to users), 0 = inactive (hidden/frozen)
   created_at?: string;
 }
 

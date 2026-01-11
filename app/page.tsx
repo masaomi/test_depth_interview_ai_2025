@@ -275,6 +275,11 @@ export default function Home() {
                   {templates.map((template) => {
                     const rawText = template.overview || template.prompt || '';
                     const preview = stripMarkdown(rawText);
+                    // Truncate title to reasonable length for display
+                    const displayTitle = stripMarkdown(template.title);
+                    const truncatedTitle = displayTitle.length > 80 
+                      ? displayTitle.substring(0, 80) + '...' 
+                      : displayTitle;
 
                     return (
                       <Link
@@ -282,8 +287,8 @@ export default function Home() {
                         href={`/interview/${template.id}?lang=${selectedLanguage}`}
                         className="block p-6 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                       >
-                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                          {template.title}
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 line-clamp-2">
+                          {truncatedTitle}
                         </h3>
                         <p className="text-gray-600 dark:text-gray-300 mb-2">
                           {localizedText.duration}: {Math.floor(template.duration / 60)} {localizedText.minutes}

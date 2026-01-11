@@ -46,6 +46,9 @@ const getTexts = (lang: string) => {
       generatedOverview: '📋 Generated Overview (displayed to participants):',
       viewOriginalPrompt: 'View original prompt',
       deleteConfirm: 'Are you sure you want to delete this template?',
+      activate: 'Show',
+      deactivate: 'Hide',
+      inactive: '(Hidden)',
     },
     ja: {
       backToHome: '← ホームに戻る',
@@ -86,6 +89,9 @@ const getTexts = (lang: string) => {
       generatedOverview: '📋 生成された概要（参加者に表示）：',
       viewOriginalPrompt: '元のプロンプトを見る',
       deleteConfirm: 'このテンプレートを削除してもよろしいですか？',
+      activate: '表示',
+      deactivate: '非表示',
+      inactive: '（非表示中）',
     },
   } as Record<string, any>;
   return dict[lang] || dict.en;
@@ -142,7 +148,8 @@ export default function AdminPage() {
 
   const fetchTemplates = async () => {
     try {
-      const response = await fetch('/api/templates');
+      // Admin panel fetches all templates including inactive ones
+      const response = await fetch('/api/templates?include_inactive=true');
       const data = await response.json();
       setTemplates(data);
     } catch (error) {
@@ -211,6 +218,23 @@ export default function AdminPage() {
       }
     } catch (error) {
       console.error('Error deleting template:', error);
+    }
+  };
+
+  const handleToggleActive = async (id: string, currentStatus: number | undefined) => {
+    try {
+      const newStatus = currentStatus === 0 ? 1 : 0;
+      const response = await fetch('/api/templates', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, is_active: newStatus }),
+      });
+
+      if (response.ok) {
+        fetchTemplates();
+      }
+    } catch (error) {
+      console.error('Error toggling template status:', error);
     }
   };
 
@@ -462,16 +486,33 @@ export default function AdminPage() {
               </p>
             ) : (
               <div className="space-y-4">
-                {templates.map((template) => (
+                {templates.map((template) => {
+                  const isActive = template.is_active !== 0;
+                  return (
                   <div
                     key={template.id}
-                    className="p-6 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                    className={`p-6 rounded-lg ${isActive ? 'bg-gray-50 dark:bg-gray-700' : 'bg-gray-200 dark:bg-gray-800 opacity-60'}`}
                   >
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
                         {template.title}
+                        {!isActive && (
+                          <span className="ml-2 text-sm font-normal text-orange-600 dark:text-orange-400">
+                            {t.inactive}
+                          </span>
+                        )}
                       </h3>
                       <div className="flex gap-2">
+                        <button
+                          onClick={() => handleToggleActive(template.id, template.is_active)}
+                          className={`px-4 py-2 rounded-lg transition-colors text-sm ${
+                            isActive
+                              ? 'bg-orange-500 text-white hover:bg-orange-600'
+                              : 'bg-green-600 text-white hover:bg-green-700'
+                          }`}
+                        >
+                          {isActive ? t.deactivate : t.activate}
+                        </button>
                         <button
                           onClick={() => handleEdit(template)}
                           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
@@ -508,7 +549,8 @@ export default function AdminPage() {
                       </p>
                     </details>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

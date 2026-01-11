@@ -310,8 +310,15 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const lang = searchParams.get('lang') || undefined;
+    const includeInactive = searchParams.get('include_inactive') === 'true';
 
-    const stmt = db.prepare('SELECT * FROM interview_templates ORDER BY created_at DESC');
+    // Admin panel requests all templates (include_inactive=true)
+    // Public pages only get active templates
+    const query = includeInactive
+      ? 'SELECT * FROM interview_templates ORDER BY created_at DESC'
+      : 'SELECT * FROM interview_templates WHERE is_active = 1 ORDER BY created_at DESC';
+    
+    const stmt = db.prepare(query);
     const templates = stmt.all() as InterviewTemplate[];
 
     if (!lang) {
@@ -459,6 +466,26 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error('Error updating template:', error);
     return NextResponse.json({ error: 'Failed to update template' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { id, is_active } = body;
+
+    if (!id || is_active === undefined) {
+      return NextResponse.json({ error: 'ID and is_active are required' }, { status: 400 });
+    }
+
+    const stmt = db.prepare('UPDATE interview_templates SET is_active = ? WHERE id = ?');
+    stmt.run(is_active ? 1 : 0, id);
+
+    console.log(`Template ${id} is_active set to ${is_active}`);
+    return NextResponse.json({ id, is_active });
+  } catch (error) {
+    console.error('Error updating template status:', error);
+    return NextResponse.json({ error: 'Failed to update template status' }, { status: 500 });
   }
 }
 
